@@ -16,7 +16,6 @@ function buildReason(
   previous: ExerciseSession | undefined,
   trend: "progressing" | "stagnating" | "regressing",
   e1RMDeltaPct: number | null,
-  sessionCount: number,
 ): string {
   if (!previous) return "First session recorded";
 
@@ -25,7 +24,8 @@ function buildReason(
 
   if (trend === "progressing") {
     if (wDiff > 0) return `+${wDiff} kg vs last session`;
-    if (rDiff > 0) return `Same weight, +${rDiff} rep${rDiff > 1 ? "s" : ""}`;
+    if (wDiff === 0 && rDiff > 0) return `Same weight, +${rDiff} rep${rDiff > 1 ? "s" : ""}`;
+    if (wDiff < 0 && rDiff > 0) return `−${Math.abs(wDiff)} kg, +${rDiff} reps — e1RM up`;
     if (e1RMDeltaPct !== null)
       return `e1RM up ${(e1RMDeltaPct * 100).toFixed(1)}% vs previous`;
   }
@@ -39,9 +39,7 @@ function buildReason(
 
   // stagnating
   if (wDiff === 0 && rDiff === 0) {
-    return sessionCount >= 3
-      ? `Top set unchanged across ${sessionCount} sessions`
-      : "Same weight and reps vs last session";
+    return "Same top set as last session";
   }
   return "Performance similar to last session";
 }
@@ -117,7 +115,7 @@ export function analyzeExerciseHistory(
     }
   }
 
-  const reason = buildReason(current, previous, trend, e1RMDelta, relevant.length);
+  const reason = buildReason(current, previous, trend, e1RMDelta);
   const bestWeight = Math.max(...relevant.map((s) => s.topWeight));
 
   // Map to legacy trend format for computeNextTarget

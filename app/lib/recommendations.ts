@@ -57,10 +57,11 @@ export function computeNextTarget(
   if (trend === "flat") {
     const flat = countFlatSessions(sessions);
     if (flat >= 3) {
-      // Deep stagnation — bump the weight
+      // Deep stagnation — bump the weight; allow at most 1 rep drop so low-rep
+      // lifts (e.g. 3 reps) don't get a range like 1–3.
       return {
         weight:  w + PLATE,
-        repsMin: Math.max(r - 2, 1),
+        repsMin: Math.max(r - 1, 1),
         repsMax: r,
         note:    `Stagnant ${flat} sessions — try more weight`,
       };
@@ -79,7 +80,7 @@ export function computeNextTarget(
     return {
       weight:  reduced,
       repsMin: r,
-      repsMax: r + 2,
+      repsMax: r,
       note:    "Declining — reduce load, focus on form",
     };
   }

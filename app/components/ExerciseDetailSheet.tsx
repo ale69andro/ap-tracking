@@ -1,5 +1,6 @@
 import type { ExerciseProgression } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
+import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import SparkLine from "./SparkLine";
 
 const TREND_CONFIG = {
@@ -87,7 +88,7 @@ export default function ExerciseDetailSheet({ progression, onClose }: Props) {
               <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-0.5">Trend</p>
               <p className={`text-sm font-bold ${t.color}`}>{t.label}</p>
               {reasonText && (
-                <p className="text-[10px] text-zinc-500 mt-0.5 max-w-[140px]">{reasonText}</p>
+                <p className={`text-[10px] mt-0.5 max-w-[140px] ${t.color} opacity-70`}>{reasonText}</p>
               )}
               {confidence && (
                 <p className="text-[10px] text-zinc-700 mt-0.5">
@@ -116,9 +117,9 @@ export default function ExerciseDetailSheet({ progression, onClose }: Props) {
           {/* Spark chart with date labels */}
           {recentSessions.length >= 2 && (
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">Last {recentSessions.length} Sessions</p>
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">E1RM history · last {recentSessions.length} sessions</p>
               <SparkLine
-                data={recentSessions.map((s) => s.topWeight)}
+                data={recentSessions.map((s) => calculateEpley1RM(s.topWeight, s.topReps))}
                 height={64}
                 color={t.spark}
               />

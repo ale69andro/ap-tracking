@@ -2,15 +2,16 @@
 
 import type { ExerciseProgression, ExerciseSession } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
+import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import SparkLine from "./SparkLine";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const TREND = {
-  up:   { label: "Progressing", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", spark: "#10b981" },
-  flat: { label: "Plateau",     color: "text-amber-400",   bg: "bg-amber-500/10  border-amber-500/20",    spark: "#f59e0b" },
-  down: { label: "Declining",   color: "text-red-400",     bg: "bg-red-500/10    border-red-500/20",      spark: "#f87171" },
-  none: { label: "New",         color: "text-zinc-500",    bg: "bg-zinc-800/50   border-zinc-700/30",     spark: "#52525b" },
+  up:   { label: "Progressing", color: "text-emerald-300", bg: "bg-emerald-500/15 border-emerald-500/30", spark: "#10b981", glow: "#10b98126" },
+  flat: { label: "Plateau",     color: "text-amber-400",   bg: "bg-amber-500/15  border-amber-500/30",    spark: "#f59e0b", glow: "#f59e0b26" },
+  down: { label: "Declining",   color: "text-red-400",     bg: "bg-red-500/15    border-red-500/30",      spark: "#f87171", glow: "#f8717126" },
+  none: { label: "New",         color: "text-zinc-400",    bg: "bg-zinc-800/50   border-zinc-700/30",     spark: "#52525b", glow: "transparent" },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -31,29 +32,116 @@ function getDelta(sessions: ExerciseSession[]): Delta | null {
   };
 }
 
-function deltaText(d: Delta): string {
-  const parts: string[] = [];
-  if (d.wDiff !== 0) parts.push(`${d.wDiff > 0 ? "+" : ""}${d.wDiff} kg`);
-  if (d.rDiff !== 0) parts.push(`${d.rDiff > 0 ? "+" : ""}${d.rDiff} rep${Math.abs(d.rDiff) !== 1 ? "s" : ""}`);
-  return parts.join("  ·  ") || "No change";
+function getPrimaryInsight(p: ExerciseProgression, delta: Delta | null): string {
+  if (!delta) return "First session recorded";
+
+  const trend = p.analysis?.trend;
+  const { wDiff, rDiff, neutral } = delta;
+
+  if (neutral) return "No change in performance";
+
+  // Pattern-based interpretation: (delta pattern + trend) → text
+  if (wDiff < 0 && rDiff > 0) return "More reps with less weight";
+  if (wDiff > 0 && rDiff < 0) return trend === "progressing" ? "Heavier weight, slight drop in reps" : "Fewer reps despite heavier weight";
+  if (wDiff > 0 && rDiff > 0) return "Heavier and more reps";
+  if (wDiff === 0 && rDiff > 0) return "More reps at the same weight";
+  if (wDiff === 0 && rDiff < 0) return "Lost reps at the same weight";
+  if (wDiff > 0 && rDiff === 0) return "Stronger at the same reps";
+  if (wDiff < 0 && rDiff === 0) return "Same reps with less weight";
+
+  // Fallback to trend
+  if (trend === "progressing") return "Estimated strength improved";
+  if (trend === "regressing")  return "Estimated strength dropped";
+  if (trend === "stagnating")  return "Performance unchanged";
+  return delta.positive ? "Strength trending up" : "Strength trending down";
 }
 
-function getInsight(p: ExerciseProgression): string {
-  // Use rich analysis recommendation if available
-  if (p.analysis?.suggestedNextWeight != null && p.analysis?.suggestedRepRange != null) {
-    const { suggestedNextWeight, suggestedRepRange, reason } = p.analysis;
-    return `Next → ${suggestedNextWeight} kg × ${suggestedRepRange} reps · ${reason}`;
+// ─── Delta Metrics chips (weight + reps, each colored by own sign) ───────────
+
+function deltaColor(n: number): string {
+  return n > 0 ? "text-emerald-400" : n < 0 ? "text-red-400" : "text-zinc-500";
+}
+
+function DeltaMetrics({ delta }: { delta: Delta | null }) {
+  if (!delta) {
+    return <p className="text-[11px] text-zinc-600 mb-3">First session — log one more to compare</p>;
+  }
+  if (delta.neutral) {
+    return <p className="text-[11px] text-zinc-500 mb-3">Same top set as last session</p>;
+  }
+  return (
+    <div className="flex items-center gap-2.5 mb-3 text-[11px] text-zinc-600">
+      {delta.wDiff !== 0 && (
+        <span className="flex items-center gap-1">
+          <span>Weight</span>
+          <span className={`font-medium tabular-nums ${deltaColor(delta.wDiff)}`}>
+            {delta.wDiff > 0 ? "+" : ""}{delta.wDiff} kg
+          </span>
+        </span>
+      )}
+      {delta.wDiff !== 0 && delta.rDiff !== 0 && (
+        <span className="text-zinc-800">·</span>
+      )}
+      {delta.rDiff !== 0 && (
+        <span className="flex items-center gap-1">
+          <span>Reps</span>
+          <span className={`font-medium tabular-nums ${deltaColor(delta.rDiff)}`}>
+            {delta.rDiff > 0 ? "+" : ""}{delta.rDiff}
+          </span>
+        </span>
+      )}
+      <span className="text-zinc-800">vs last</span>
+    </div>
+  );
+}
+
+function getChartInterpretation(p: ExerciseProgression): string | null {
+  if (p.recentSessions.length < 2) return null;
+  const trend = p.analysis?.trend;
+  const conf  = p.analysis?.confidence;
+
+  const fullData = p.recentSessions.length >= 5;
+  if (trend === "progressing") return (conf === "high" && fullData) ? "Strength clearly going up" : "Strength trending up";
+  if (trend === "regressing")  return (conf === "high" && fullData) ? "Output has been dropping"  : "Recent drop in output";
+  if (trend === "stagnating")  return (conf === "high" && fullData) ? "Stuck at the same level"   : "Performance flat recently";
+  return null;
+}
+
+function getActionText(p: ExerciseProgression): string {
+  const trend = p.analysis?.trend;
+  const conf  = p.analysis?.confidence;
+  const w     = p.analysis?.suggestedNextWeight;
+  const reps  = p.analysis?.suggestedRepRange;
+
+  if (trend === "regressing") {
+    if (w != null && reps != null) {
+      return conf === "high"
+        ? `Deload to ${w} kg × ${reps} reps — stop the decline`
+        : `Step back to ${w} kg × ${reps} reps`;
+    }
+    return "Reduce load — focus on form and consistency";
   }
 
+  if (trend === "stagnating") {
+    if (w != null && reps != null) {
+      return conf === "high"
+        ? `Plateau detected — push to ${w} kg × ${reps} reps`
+        : `Try ${w} kg × ${reps} reps to break the plateau`;
+    }
+    return "Hold weight — push for +1 rep next session";
+  }
+
+  if (trend === "progressing" && w != null && reps != null) {
+    return `Keep going — next: ${w} kg × ${reps} reps`;
+  }
+
+  // Fallback to computeNextTarget
   const target = computeNextTarget(p.recentSessions, p.trend);
   if (!target) return "Log one more session to unlock insights.";
-
-  const repsStr =
-    target.repsMin === target.repsMax
-      ? `${target.repsMin}`
-      : `${target.repsMin}–${target.repsMax}`;
-
-  return `Next session → ${target.weight} kg × ${repsStr} reps · ${target.note}`;
+  const repsStr = target.repsMin === target.repsMax
+    ? `${target.repsMin}`
+    : `${target.repsMin}–${target.repsMax}`;
+  return `Next → ${target.weight} kg × ${repsStr} reps`;
 }
 
 function computeOverview(progressions: ExerciseProgression[]) {
@@ -105,6 +193,78 @@ function Tile({
   );
 }
 
+// ─── Focus Priority ───────────────────────────────────────────────────────────
+
+function getFocusScore(p: ExerciseProgression): number {
+  const trend = p.analysis?.trend;
+  const conf  = p.analysis?.confidence;
+  let score = 0;
+  if (trend === "regressing")       score += 300;
+  else if (trend === "stagnating")  score += 200;
+  else if (trend === "progressing") score += 100;
+  if (conf === "high")              score += 30;
+  else if (conf === "medium")       score += 20;
+  else if (conf === "low")          score += 10;
+  return score;
+}
+
+// ─── Next Action Block ────────────────────────────────────────────────────────
+
+function NextAction({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2.5 mt-2 bg-zinc-800/60 border border-zinc-700/40 rounded-xl px-3.5 py-2.5">
+      <span className="text-zinc-500 text-xs shrink-0">▶</span>
+      <p className="text-[13px] font-semibold text-white leading-snug">{text}</p>
+    </div>
+  );
+}
+
+// ─── Section Header ────────────────────────────────────────────────────────────
+
+function SectionHeader({ label, color, count }: { label: string; color: string; count: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-3 mt-6 first:mt-0">
+      <p className={`text-[10px] font-black uppercase tracking-widest ${color}`}>{label}</p>
+      <span className="text-[10px] text-zinc-700 font-bold">{count}</span>
+      <div className="flex-1 h-px bg-zinc-800/60" />
+    </div>
+  );
+}
+
+// ─── Focus Today Card ─────────────────────────────────────────────────────────
+
+function FocusTodayCard({ p, onTap }: { p: ExerciseProgression; onTap: () => void }) {
+  const delta  = getDelta(p.recentSessions);
+  const t      = TREND[resolvedTrendKey(p)];
+  const action = getActionText(p);
+
+  return (
+    <button
+      onClick={onTap}
+      className="w-full text-left bg-zinc-900/60 border rounded-[18px] px-5 py-4 mb-8 hover:bg-zinc-800/60 active:scale-[0.98] transition-all duration-150"
+      style={{ borderColor: `${t.spark}50` }}
+    >
+      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">Focus Today</p>
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <p className="text-[15px] font-black text-white leading-snug truncate">{p.name}</p>
+        <span
+          className={`shrink-0 text-[11px] font-bold px-3 py-1.5 rounded-full border ${t.bg} ${t.color}`}
+          style={{ boxShadow: `0 0 10px ${t.glow}` }}
+        >
+          {t.label}
+        </span>
+      </div>
+      <p
+        className={`text-[18px] font-black leading-snug mb-3 ${t.color}`}
+        style={{ textShadow: `0 0 28px ${t.spark}4D` }}
+      >
+        {getPrimaryInsight(p, delta)}
+      </p>
+      <NextAction text={action} />
+    </button>
+  );
+}
+
 // ─── Exercise Progress Card ────────────────────────────────────────────────────
 
 function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND {
@@ -121,15 +281,12 @@ function ExerciseCard({
   p: ExerciseProgression;
   onTap: () => void;
 }) {
-  const delta   = getDelta(p.recentSessions);
-  const t       = TREND[resolvedTrendKey(p)];
-  const insight = getInsight(p);
-
-  const deltaColor = !delta || delta.neutral
-    ? "text-zinc-500"
-    : delta.positive
-    ? "text-emerald-400"
-    : "text-red-400";
+  const delta         = getDelta(p.recentSessions);
+  const t             = TREND[resolvedTrendKey(p)];
+  const insight       = getActionText(p);
+  const chartCaption  = getChartInterpretation(p);
+  const sessionCount  = p.recentSessions.length;
+  const isEarlyData   = sessionCount < 4;
 
   return (
     <button
@@ -144,25 +301,61 @@ function ExerciseCard({
             <p className="text-[11px] text-zinc-600 mt-0.5 truncate">{p.muscleGroups.join(" · ")}</p>
           )}
         </div>
-        <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full border ${t.bg} ${t.color}`}>
+        <span
+          className={`shrink-0 text-[11px] font-bold px-3 py-1.5 rounded-full border ${t.bg} ${t.color}`}
+          style={{ boxShadow: `0 0 10px ${t.glow}` }}
+        >
           {t.label}
         </span>
       </div>
 
-      {/* Row 2: delta */}
-      <p className={`text-sm font-semibold tabular-nums mb-3 ${deltaColor}`}>
-        {delta ? `${deltaText(delta)} vs last session` : "First session — log one more to compare"}
+      {/* Row 2: primary insight + delta chips */}
+      <p
+        className={`text-[18px] font-black leading-snug mb-3 ${t.color}`}
+        style={{ textShadow: `0 0 28px ${t.spark}4D` }}
+      >
+        {getPrimaryInsight(p, delta)}
       </p>
+      <div style={{ opacity: 0.88 }}>
+        <DeltaMetrics delta={delta} />
+      </div>
 
-      {/* Row 3: sparkline */}
-      {p.recentSessions.length >= 2 && (
-        <div className="mb-3">
-          <SparkLine data={p.recentSessions.map((s) => s.topWeight)} height={28} color={t.spark} />
+      {/* Row 3: sparkline — adapts to available data */}
+      {sessionCount >= 2 && (
+        <div className={`mb-3${isEarlyData ? " opacity-70" : ""}`}>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-700 mb-1">
+            {sessionCount >= 4 ? "E1RM · recent signal" : `E1RM · ${sessionCount}-session view`}
+          </p>
+          <div style={{ background: "rgba(255,0,0,0.15)", border: "1px solid red" }}>
+            <SparkLine
+              data={p.recentSessions.slice(-Math.min(sessionCount, 4)).map((s) => calculateEpley1RM(s.topWeight, s.topReps))}
+              height={120}
+              color={t.spark}
+              minRangePct={sessionCount >= 3 ? 0.01 : 0}
+            />
+          </div>
+          {chartCaption && sessionCount >= 3 && (
+            <p className={`text-[10px] font-semibold mt-1 ${t.color}`} style={{ opacity: 0.7 }}>
+              {chartCaption}
+            </p>
+          )}
+          {isEarlyData && (
+            <p className="text-[9px] text-zinc-600 mt-1.5">
+              Early trend — {4 - sessionCount} more session{4 - sessionCount !== 1 ? "s" : ""} improve{4 - sessionCount !== 1 ? "" : "s"} accuracy
+            </p>
+          )}
         </div>
       )}
 
-      {/* Row 4: insight */}
-      <p className="text-[11px] text-zinc-600 leading-relaxed">{insight}</p>
+      {/* Row 4: next action */}
+      <NextAction text={insight} />
+
+      {/* Row 5: low-confidence notice */}
+      {p.analysis?.confidence === "low" && (
+        <p className="text-[10px] text-zinc-600 mt-1.5 leading-relaxed">
+          Based on {p.recentSessions.length} session{p.recentSessions.length === 1 ? "" : "s"} — more data improves accuracy
+        </p>
+      )}
     </button>
   );
 }
@@ -174,14 +367,35 @@ type Props = {
   onTapExercise: (p: ExerciseProgression) => void;
 };
 
-const TREND_ORDER: Record<string, number> = { up: 0, flat: 1, down: 2, none: 3 };
+const SECTION_CONFIG = [
+  { key: "up",   label: "Progressing",     color: "text-emerald-500" },
+  { key: "down", label: "Needs Attention", color: "text-red-500"     },
+  { key: "flat", label: "Plateau",         color: "text-amber-500"   },
+  { key: "none", label: "New",             color: "text-zinc-500"    },
+] as const;
+
+function groupProgressions(progressions: ExerciseProgression[]) {
+  const map = new Map<string, ExerciseProgression[]>(
+    SECTION_CONFIG.map(s => [s.key, []])
+  );
+  for (const p of progressions) {
+    map.get(resolvedTrendKey(p))!.push(p);
+  }
+  return SECTION_CONFIG
+    .map(s => ({
+      ...s,
+      // Sort within each group: highest confidence (most actionable signal) first
+      items: map.get(s.key)!.sort((a, b) => getFocusScore(b) - getFocusScore(a)),
+    }))
+    .filter(s => s.items.length > 0);
+}
 
 export default function ProgressScreen({ progressions, onTapExercise }: Props) {
   const overview = computeOverview(progressions);
-
-  const sorted = [...progressions].sort(
-    (a, b) => TREND_ORDER[a.trend] - TREND_ORDER[b.trend]
-  );
+  const groups   = groupProgressions(progressions);
+  const focus    = progressions.length >= 2
+    ? [...progressions].sort((a, b) => getFocusScore(b) - getFocusScore(a))[0]
+    : null;
 
   const noData = progressions.length === 0;
 
@@ -238,10 +452,22 @@ export default function ProgressScreen({ progressions, onTapExercise }: Props) {
             />
           </div>
 
-          {/* Exercise cards */}
-          <div className="space-y-4">
-            {sorted.map((p) => (
-              <ExerciseCard key={p.name} p={p} onTap={() => onTapExercise(p)} />
+          {/* Focus Today */}
+          {focus && (
+            <FocusTodayCard p={focus} onTap={() => onTapExercise(focus)} />
+          )}
+
+          {/* Exercise cards grouped by trend */}
+          <div>
+            {groups.map((group) => (
+              <div key={group.key}>
+                <SectionHeader label={group.label} color={group.color} count={group.items.length} />
+                <div className="space-y-4">
+                  {group.items.map((p) => (
+                    <ExerciseCard key={p.name} p={p} onTap={() => onTapExercise(p)} />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </>
