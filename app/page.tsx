@@ -16,6 +16,7 @@ import { useTemplates } from "./hooks/useTemplates";
 import AddExerciseModal from "./components/AddExerciseModal";
 import { PRESET_TEMPLATES } from "./constants/presetTemplates";
 import { DEMO_WORKOUTS } from "./constants/demoData";
+import { ANALYSIS_TEST_WORKOUTS } from "./constants/analysisTestData";
 import type { ExerciseProgression, WorkoutSession, WorkoutTemplate } from "./types";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@ export default function Home() {
   const [tab, setTab]                       = useState<"home" | "history" | "progress">("home");
   const [showModal, setShowModal]           = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<ExerciseProgression | null>(null);
-  const [showDemo, setShowDemo]             = useState(false);
+  const [historySource, setHistorySource]   = useState<"real" | "demo" | "test">("real");
   const [showTemplates, setShowTemplates]   = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null);
   const [isEditingName, setIsEditingName]   = useState(false);
@@ -88,7 +89,10 @@ export default function Home() {
 
   const { templates, saveTemplate, deleteTemplate } = useTemplates();
 
-  const effectiveHistory = showDemo ? [...DEMO_WORKOUTS, ...history] : history;
+  const effectiveHistory =
+    historySource === "demo"  ? [...DEMO_WORKOUTS, ...history] :
+    historySource === "test"  ? ANALYSIS_TEST_WORKOUTS :
+    history;
   const progressions     = useProgression(effectiveHistory);
 
   const handleAddExercise = (name: string, muscleGroups: string[]) => {
@@ -229,14 +233,14 @@ export default function Home() {
                     </span>
                   )}
                   <button
-                    onClick={() => setShowDemo((d) => !d)}
+                    onClick={() => setHistorySource((s) => s === "real" ? "demo" : s === "demo" ? "test" : "real")}
                     className={`text-[11px] font-bold px-3 py-1.5 rounded-full border transition-colors ${
-                      showDemo
-                        ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-400"
-                        : "border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-zinc-500 hover:text-white"
+                      historySource === "demo" ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-400" :
+                      historySource === "test" ? "border-amber-500/60 bg-amber-500/15 text-amber-400" :
+                      "border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-zinc-500 hover:text-white"
                     }`}
                   >
-                    {showDemo ? "● Demo on" : "Demo"}
+                    {historySource === "demo" ? "● Demo" : historySource === "test" ? "● Test" : "Demo"}
                   </button>
                 </div>
               </div>
