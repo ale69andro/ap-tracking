@@ -1,6 +1,5 @@
 import type { ExerciseProgression } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
-import { analyzeExercise } from "@/lib/analysis/analyzeExercise";
 import SparkLine from "./SparkLine";
 
 const TREND_CONFIG = {
@@ -16,16 +15,20 @@ type Props = {
 };
 
 export default function ExerciseDetailSheet({ progression, onClose }: Props) {
-  const { name, muscleGroups, bestWeight, recentSessions, trend } = progression;
+  const { name, muscleGroups, bestWeight, recentSessions, trend, analysis } = progression;
   const t = TREND_CONFIG[trend];
   const nextTarget = computeNextTarget(recentSessions, trend);
-  const analysis = analyzeExercise(
-    recentSessions.map((s) => ({
-      date: s.date,
-      bestWeight: s.topWeight,
-      bestReps: s.topReps,
-      bestEstimated1RM: s.score,
-    }))
+
+  const reasonText  = analysis?.reason ?? null;
+  const currentE1RM = analysis?.currentE1RM ?? null;
+  const confidence  = analysis?.confidence ?? null;
+  const nextWeight   = analysis?.suggestedNextWeight ?? nextTarget?.weight ?? null;
+  const nextRepRange = analysis?.suggestedRepRange ?? (
+    nextTarget
+      ? nextTarget.repsMin === nextTarget.repsMax
+        ? `${nextTarget.repsMin}`
+        : `${nextTarget.repsMin}–${nextTarget.repsMax}`
+      : null
   );
 
   return (
@@ -66,31 +69,39 @@ export default function ExerciseDetailSheet({ progression, onClose }: Props) {
                 {bestWeight > 0 ? `${bestWeight}` : "—"}
                 <span className="text-base font-normal text-zinc-500 ml-1">kg</span>
               </p>
+              {currentE1RM !== null && (
+                <p className="text-[10px] text-zinc-600 mt-1">
+                  e1RM <span className="text-zinc-400 font-semibold">{currentE1RM} kg</span>
+                </p>
+              )}
             </div>
             <div className="ml-auto text-right">
               <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-0.5">Trend</p>
               <p className={`text-sm font-bold ${t.color}`}>{t.label}</p>
-              {analysis.status !== "not-enough-data" && (
-                <p className="text-[10px] text-zinc-600 mt-0.5 max-w-[140px]">{analysis.suggestion}</p>
+              {reasonText && (
+                <p className="text-[10px] text-zinc-500 mt-0.5 max-w-[140px]">{reasonText}</p>
+              )}
+              {confidence && (
+                <p className="text-[10px] text-zinc-700 mt-0.5">
+                  {confidence === "high" ? "High confidence" : confidence === "medium" ? "Medium confidence" : "Low confidence"}
+                </p>
               )}
             </div>
           </div>
 
           {/* Next Session recommendation */}
-          {nextTarget && trend !== "none" && (
+          {nextWeight !== null && nextRepRange !== null && trend !== "none" && (
             <div className="bg-zinc-800/60 border border-zinc-700/40 rounded-2xl px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-red-500/80 mb-2">
                 Next Session
               </p>
               <p className="text-lg font-black text-white tabular-nums leading-none">
-                {nextTarget.weight} kg
+                {nextWeight} kg
                 <span className="text-sm font-normal text-zinc-400 ml-2">
-                  × {nextTarget.repsMin === nextTarget.repsMax
-                    ? nextTarget.repsMin
-                    : `${nextTarget.repsMin}–${nextTarget.repsMax}`} reps
+                  × {nextRepRange} reps
                 </span>
               </p>
-              <p className="text-[11px] text-zinc-600 mt-1.5">{nextTarget.note}</p>
+              <p className="text-[11px] text-zinc-600 mt-1.5">{nextTarget?.note}</p>
             </div>
           )}
 
@@ -117,9 +128,9 @@ export default function ExerciseDetailSheet({ progression, onClose }: Props) {
               <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">Last Session</p>
               <div className="bg-zinc-800/50 rounded-xl px-4 py-3 space-y-2">
                 <div className="flex justify-between text-xs text-zinc-500">
-                  <span>Top Weight</span>
+                  <span>Top Set</span>
                   <span className="font-semibold text-zinc-200 tabular-nums">
-                    {recentSessions[recentSessions.length - 1].topWeight} kg
+                    {recentSessions[recentSessions.length - 1].topWeight} kg × {recentSessions[recentSessions.length - 1].topReps} reps
                   </span>
                 </div>
                 <div className="flex justify-between text-xs text-zinc-500">

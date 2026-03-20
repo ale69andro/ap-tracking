@@ -95,6 +95,7 @@ export type ExerciseProgression = {
   trend: "up" | "flat" | "down" | "none";
   trendScore: number;
   lastSeen: string;
+  analysis?: ExerciseAnalysisResult;
 };
 
 export type NextTarget = {
@@ -103,6 +104,21 @@ export type NextTarget = {
   repsMax: number;
   /** Short actionable note shown to the user. */
   note: string;
+};
+
+export type ExerciseAnalysisResult = {
+  exerciseName: string;
+  trend: "progressing" | "stagnating" | "regressing";
+  reason: string;
+  currentE1RM: number | null;
+  previousE1RM: number | null;
+  /** Percentage change (e.g. 5 means +5%). Null when no previous session. */
+  volumeDeltaPct: number | null;
+  suggestedNextWeight: number | null;
+  suggestedRepRange: string | null;
+  confidence: "low" | "medium" | "high";
+  bestWeight: number | null;
+  lastTopSet: { weight: number; reps: number } | null;
 };
 
 // ─── Backward-compat alias ────────────────────────────────────────────────────

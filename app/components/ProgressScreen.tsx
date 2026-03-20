@@ -39,6 +39,12 @@ function deltaText(d: Delta): string {
 }
 
 function getInsight(p: ExerciseProgression): string {
+  // Use rich analysis recommendation if available
+  if (p.analysis?.suggestedNextWeight != null && p.analysis?.suggestedRepRange != null) {
+    const { suggestedNextWeight, suggestedRepRange, reason } = p.analysis;
+    return `Next → ${suggestedNextWeight} kg × ${suggestedRepRange} reps · ${reason}`;
+  }
+
   const target = computeNextTarget(p.recentSessions, p.trend);
   if (!target) return "Log one more session to unlock insights.";
 

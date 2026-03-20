@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import type { WorkoutSession, ExerciseProgression, ExerciseSession } from "@/app/types";
 import { computeSessionScore, computeTrend } from "@/app/lib/progression";
 import { getSessionDate } from "@/app/hooks/useWorkout";
+import { analyzeExerciseHistory } from "@/lib/analysis/analyzeExerciseHistory";
+import { getTopSet } from "@/lib/analysis/exerciseMetrics";
 
 export function useProgression(history: WorkoutSession[]): ExerciseProgression[] {
   return useMemo(() => {
@@ -18,8 +20,9 @@ export function useProgression(history: WorkoutSession[]): ExerciseProgression[]
         );
         if (validSets.length === 0) return;
 
-        const topWeight   = Math.max(...validSets.map((s) => parseFloat(s.weight) || 0));
-        const topReps     = Math.max(...validSets.map((s) => parseFloat(s.reps)   || 0));
+        const topSet = getTopSet(validSets);
+        if (!topSet) return;
+        const { weight: topWeight, reps: topReps } = topSet;
         const totalVolume = validSets.reduce(
           (sum, s) => sum + (parseFloat(s.weight) || 0) * (parseFloat(s.reps) || 0),
           0
@@ -54,6 +57,7 @@ export function useProgression(history: WorkoutSession[]): ExerciseProgression[]
       const lastSeen       = sessions[sessions.length - 1].date;
       const trendScores    = sessions.slice(-5).map((s) => s.score);
       const trend          = computeTrend(trendScores);
+      const analysis       = analyzeExerciseHistory(recentSessions, name);
 
       entries.push({
         name,
@@ -63,6 +67,7 @@ export function useProgression(history: WorkoutSession[]): ExerciseProgression[]
         trend,
         trendScore: Math.round((bestWeight / globalMax) * 100),
         lastSeen,
+        analysis,
       });
     });
 
