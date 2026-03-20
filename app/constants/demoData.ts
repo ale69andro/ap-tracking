@@ -74,6 +74,7 @@ export const DEMO_WORKOUTS: WorkoutSession[] = DATES.map((dateStr, i) => {
     id:         uid(),
     name:       "Demo Workout",
     startedAt,
+    status:     "completed" as const,
     durationSeconds: 3600,
     exercises:  EXERCISES.map((ex) => ({
       id:           uid(),
