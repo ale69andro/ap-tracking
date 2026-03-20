@@ -3,13 +3,29 @@ type SparkLineProps = {
   height?: number;
   color: string;
   /** Minimum visual range as a fraction of max value (0 = natural scaling).
-   *  Use ~0.01 for card sparklines to ensure a perceptible slope even for
-   *  small E1RM deltas. Leave at 0 for detail/history charts. */
+   *  Use ~0.06 for progress-screen card sparklines.
+   *  Leave at 0 for detail/history charts. */
   minRangePct?: number;
+  /**
+   * "dashboard" — compact, wide, glance-driven cards (home screen ProgressionCard).
+   *   Forces minRangePct ≥ 0.08 and uses rangePad=0.12 for ~80% vertical travel.
+   * "default"   — progress-screen cards and detail charts; respects passed minRangePct
+   *   and uses rangePad=0.25 for ~67% vertical travel.
+   */
+  variant?: "default" | "dashboard";
 };
 
-export default function SparkLine({ data, height = 40, color, minRangePct = 0 }: SparkLineProps) {
+export default function SparkLine({ data, height = 40, color, minRangePct = 0, variant = "default" }: SparkLineProps) {
   if (data.length < 2) return null;
+
+  const isDashboard = variant === "dashboard";
+
+  // Dashboard: tighter padding → more of drawH used for actual data travel.
+  // Default: moderate padding preserves visual breathing room for taller charts.
+  const rangePadFactor    = isDashboard ? 0.12 : 0.25;
+  // Dashboard: floor minRangePct at 0.08 so even tiny E1RM deltas on compact
+  // wide cards produce a clearly visible slope. Caller value wins if higher.
+  const effectiveMinRange = isDashboard ? Math.max(minRangePct, 0.08) : minRangePct;
 
   const W = 100;
   const H = height;
@@ -28,12 +44,9 @@ export default function SparkLine({ data, height = 40, color, minRangePct = 0 }:
   // When all values are equal, draw a centered flat line (stagnation)
   const midY = padYTop + drawH / 2;
 
-  // Amplify visible slope: 50% padding so even small E1RM differences render
-  // as a clear incline/decline. Minimum effective range = 2% of max value so
-  // a 1-kg improvement on a 100 kg lift is still perceptible.
-  const minRange = max * minRangePct;
+  const minRange = max * effectiveMinRange;
   const ampRange = range > 0 ? Math.max(range, minRange) : minRange;
-  const rangePad = ampRange * 0.5;
+  const rangePad = ampRange * rangePadFactor;
   const effectiveMax = max + rangePad;
   const effectiveRange = range > 0 ? ampRange + 2 * rangePad : 1;
 
@@ -46,10 +59,14 @@ export default function SparkLine({ data, height = 40, color, minRangePct = 0 }:
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
   const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(2)} ${H} L ${points[0].x.toFixed(2)} ${H} Z`;
 
-  // Stable gradient / filter IDs derived from color
-  const gradId   = `spkg-${color.replace(/[^a-z0-9]/gi, "")}`;
-  const fadeId   = `spkf-${color.replace(/[^a-z0-9]/gi, "")}`;
-  const glowId   = `spkgl-${color.replace(/[^a-z0-9]/gi, "")}`;
+  // Stable gradient / filter IDs derived from color + variant to avoid collisions
+  const suffix = `${color.replace(/[^a-z0-9]/gi, "")}${isDashboard ? "d" : ""}`;
+  const gradId  = `spkg-${suffix}`;
+  const fadeId  = `spkf-${suffix}`;
+  const glowId  = `spkgl-${suffix}`;
+
+  // Dashboard area fill is slightly stronger to compensate for shallow card depth
+  const areaOpacity = isDashboard ? 0.38 : 0.32;
 
   return (
     <div style={{ position: "relative", height }}>
@@ -63,7 +80,7 @@ export default function SparkLine({ data, height = 40, color, minRangePct = 0 }:
       >
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+            <stop offset="0%" stopColor={color} stopOpacity={areaOpacity} />
             <stop offset="100%" stopColor={color} stopOpacity="0" />
           </linearGradient>
           {/* Left-edge fade: de-emphasises oldest data without hard cropping */}
@@ -85,7 +102,7 @@ export default function SparkLine({ data, height = 40, color, minRangePct = 0 }:
           d={linePath}
           fill="none"
           stroke={color}
-          strokeWidth="3"
+          strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
           filter={`url(#${glowId})`}
@@ -97,7 +114,7 @@ export default function SparkLine({ data, height = 40, color, minRangePct = 0 }:
       {/* CSS circles: always perfectly round, positioned via percentage/px */}
       {points.map((p, i) => {
         const isLast = i === points.length - 1;
-        const size = isLast ? 8 : 4;
+        const size = isLast ? 10 : 4;
         // Intermediate dots fade from left to right matching the SVG left-edge fade.
         // oldest → 18% opacity, rightmost non-last → 38% opacity.
         const intermediateOpacity = 0.18 + (i / Math.max(points.length - 2, 1)) * 0.20;
@@ -112,11 +129,11 @@ export default function SparkLine({ data, height = 40, color, minRangePct = 0 }:
               height: size,
               transform: "translate(-50%, -50%)",
               borderRadius: "50%",
-              background: isLast ? color : `${color}`,
+              background: color,
               opacity: isLast ? 1 : intermediateOpacity,
-              // Last point: inner tight glow + outer soft halo + white micro-ring
+              // Last point: white micro-ring + tight inner glow + wide halo
               boxShadow: isLast
-                ? `0 0 0 1.5px rgba(255,255,255,0.15), 0 0 6px 2px ${color}cc, 0 0 14px 4px ${color}50`
+                ? `0 0 0 2px rgba(255,255,255,0.18), 0 0 8px 3px ${color}dd, 0 0 20px 6px ${color}55`
                 : undefined,
               pointerEvents: "none",
             }}

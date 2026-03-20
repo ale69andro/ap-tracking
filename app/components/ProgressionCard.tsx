@@ -1,4 +1,5 @@
 import type { ExerciseProgression, ExerciseSession } from "@/app/types";
+import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import SparkLine from "./SparkLine";
 
 const TREND_CONFIG = {
@@ -69,10 +70,17 @@ export default function ProgressionCard({ progression, onTap }: Props) {
         </span>
       </div>
 
+      {/* Interpretation headline */}
+      {progression.analysis?.interpretation && (
+        <p className={`text-[15px] font-black leading-snug mb-1 ${t.color}`}>
+          {progression.analysis.interpretation.title}
+        </p>
+      )}
+
       {/* Delta vs last session */}
       {delta ? (
-        <p className={`text-xs font-semibold tabular-nums mb-3 ${
-          delta.neutral ? "text-zinc-500" : delta.positive ? "text-emerald-400" : "text-red-400"
+        <p className={`text-xs tabular-nums mb-3 ${
+          delta.neutral ? "text-zinc-600" : delta.positive ? "text-emerald-600" : "text-red-600"
         }`}>
           {delta.text} vs last session
         </p>
@@ -80,13 +88,14 @@ export default function ProgressionCard({ progression, onTap }: Props) {
         <p className="text-xs text-zinc-600 mb-3">First session</p>
       )}
 
-      {/* Sparkline */}
+      {/* Sparkline — e1RM series, dashboard variant for wide+short aspect ratio */}
       {recentSessions.length >= 2 && (
         <div className="mb-3">
           <SparkLine
-            data={recentSessions.map((s) => s.topWeight)}
-            height={32}
+            data={recentSessions.map((s) => calculateEpley1RM(s.topWeight, s.topReps))}
+            height={48}
             color={t.spark}
+            variant="dashboard"
           />
         </div>
       )}

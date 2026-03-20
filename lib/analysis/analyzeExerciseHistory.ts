@@ -1,6 +1,7 @@
 import type { ExerciseSession, ExerciseAnalysisResult } from "@/app/types";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import { computeNextTarget } from "@/app/lib/recommendations";
+import { interpretProgression } from "@/lib/analysis/interpretProgression";
 
 const MIN_PROGRESS_PCT = 0.01;   // > 1% e1RM gain  → progressing
 const MIN_REGRESS_PCT  = 0.015;  // > 1.5% e1RM loss → regressing
@@ -118,6 +119,10 @@ export function analyzeExerciseHistory(
   const reason = buildReason(current, previous, trend, e1RMDelta);
   const bestWeight = Math.max(...relevant.map((s) => s.topWeight));
 
+  // ── Coaching interpretation ───────────────────────────────────────────────
+  const e1rmSeries = relevant.map((s) => calculateEpley1RM(s.topWeight, s.topReps));
+  const interpretation = interpretProgression(e1rmSeries);
+
   // Map to legacy trend format for computeNextTarget
   const legacyTrend =
     trend === "progressing" ? "up" : trend === "regressing" ? "down" : "flat";
@@ -141,5 +146,6 @@ export function analyzeExerciseHistory(
     confidence,
     bestWeight: bestWeight > 0 ? bestWeight : null,
     lastTopSet: current.topWeight > 0 ? { weight: current.topWeight, reps: current.topReps } : null,
+    interpretation,
   };
 }

@@ -33,27 +33,21 @@ function getDelta(sessions: ExerciseSession[]): Delta | null {
 }
 
 function getPrimaryInsight(p: ExerciseProgression, delta: Delta | null): string {
+  // Prefer the smarter interpretation layer when available
+  if (p.analysis?.interpretation) return p.analysis.interpretation.title;
+
+  // Fallback: delta-pattern text for exercises without analysis
   if (!delta) return "First session recorded";
-
-  const trend = p.analysis?.trend;
-  const { wDiff, rDiff, neutral } = delta;
-
-  if (neutral) return "No change in performance";
-
-  // Pattern-based interpretation: (delta pattern + trend) → text
+  if (delta.neutral) return "Strength holding steady";
+  const { wDiff, rDiff } = delta;
   if (wDiff < 0 && rDiff > 0) return "More reps with less weight";
-  if (wDiff > 0 && rDiff < 0) return trend === "progressing" ? "Heavier weight, slight drop in reps" : "Fewer reps despite heavier weight";
+  if (wDiff > 0 && rDiff < 0) return "Heavier weight, slight rep drop";
   if (wDiff > 0 && rDiff > 0) return "Heavier and more reps";
   if (wDiff === 0 && rDiff > 0) return "More reps at the same weight";
   if (wDiff === 0 && rDiff < 0) return "Lost reps at the same weight";
   if (wDiff > 0 && rDiff === 0) return "Stronger at the same reps";
-  if (wDiff < 0 && rDiff === 0) return "Same reps with less weight";
-
-  // Fallback to trend
-  if (trend === "progressing") return "Estimated strength improved";
-  if (trend === "regressing")  return "Estimated strength dropped";
-  if (trend === "stagnating")  return "Performance unchanged";
-  return delta.positive ? "Strength trending up" : "Strength trending down";
+  if (wDiff < 0 && rDiff === 0) return "Same reps, less weight";
+  return delta.positive ? "Strength trending up" : "Output trending down";
 }
 
 // ─── Delta Metrics chips (weight + reps, each colored by own sign) ───────────
@@ -97,14 +91,8 @@ function DeltaMetrics({ delta }: { delta: Delta | null }) {
 
 function getChartInterpretation(p: ExerciseProgression): string | null {
   if (p.recentSessions.length < 2) return null;
-  const trend = p.analysis?.trend;
-  const conf  = p.analysis?.confidence;
-
-  const fullData = p.recentSessions.length >= 5;
-  if (trend === "progressing") return (conf === "high" && fullData) ? "Strength clearly going up" : "Strength trending up";
-  if (trend === "regressing")  return (conf === "high" && fullData) ? "Output has been dropping"  : "Recent drop in output";
-  if (trend === "stagnating")  return (conf === "high" && fullData) ? "Stuck at the same level"   : "Performance flat recently";
-  return null;
+  // Prefer the interpretation subtitle — more nuanced than the 3-state trend
+  return p.analysis?.interpretation?.subtitle ?? null;
 }
 
 function getActionText(p: ExerciseProgression): string {
@@ -137,11 +125,15 @@ function getActionText(p: ExerciseProgression): string {
 
   // Fallback to computeNextTarget
   const target = computeNextTarget(p.recentSessions, p.trend);
-  if (!target) return "Log one more session to unlock insights.";
-  const repsStr = target.repsMin === target.repsMax
-    ? `${target.repsMin}`
-    : `${target.repsMin}–${target.repsMax}`;
-  return `Next → ${target.weight} kg × ${repsStr} reps`;
+  if (target) {
+    const repsStr = target.repsMin === target.repsMax
+      ? `${target.repsMin}`
+      : `${target.repsMin}–${target.repsMax}`;
+    return `Next → ${target.weight} kg × ${repsStr} reps`;
+  }
+
+  // Last resort: coaching note from the interpretation layer
+  return p.analysis?.interpretation?.recommendation ?? "Keep logging to unlock insights";
 }
 
 function computeOverview(progressions: ExerciseProgression[]) {
@@ -326,14 +318,12 @@ function ExerciseCard({
           <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-700 mb-1">
             {sessionCount >= 4 ? "E1RM · recent signal" : `E1RM · ${sessionCount}-session view`}
           </p>
-          <div style={{ background: "rgba(255,0,0,0.15)", border: "1px solid red" }}>
-            <SparkLine
-              data={p.recentSessions.slice(-Math.min(sessionCount, 4)).map((s) => calculateEpley1RM(s.topWeight, s.topReps))}
-              height={120}
-              color={t.spark}
-              minRangePct={sessionCount >= 3 ? 0.01 : 0}
-            />
-          </div>
+          <SparkLine
+            data={p.recentSessions.slice(-Math.min(sessionCount, 4)).map((s) => calculateEpley1RM(s.topWeight, s.topReps))}
+            height={sessionCount === 2 ? 34 : 52}
+            color={t.spark}
+            minRangePct={sessionCount >= 3 ? 0.06 : 0}
+          />
           {chartCaption && sessionCount >= 3 && (
             <p className={`text-[10px] font-semibold mt-1 ${t.color}`} style={{ opacity: 0.7 }}>
               {chartCaption}

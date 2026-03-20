@@ -106,6 +106,32 @@ export type NextTarget = {
   note: string;
 };
 
+// ─── Progression Interpretation ───────────────────────────────────────────────
+
+export type ProgressionStatus =
+  | "progressing"
+  | "improving_slightly"
+  | "stable"
+  | "stalling"
+  | "fatigue_dip"
+  | "regressing";
+
+/**
+ * High-level coaching interpretation of recent exercise performance.
+ * Computed by interpretProgression() from an e1RM series.
+ * Separates noise, fatigue dips, stalls, and real regressions.
+ */
+export type ProgressionInterpretation = {
+  status: ProgressionStatus;
+  confidence: "low" | "medium" | "high";
+  /** Short headline for the card — e.g. "Strength trending up" */
+  title: string;
+  /** One-line context — e.g. "Consistent gains over recent sessions" */
+  subtitle: string;
+  /** Actionable coaching note */
+  recommendation: string;
+};
+
 export type ExerciseAnalysisResult = {
   exerciseName: string;
   trend: "progressing" | "stagnating" | "regressing";
@@ -119,6 +145,8 @@ export type ExerciseAnalysisResult = {
   confidence: "low" | "medium" | "high";
   bestWeight: number | null;
   lastTopSet: { weight: number; reps: number } | null;
+  /** Smarter coaching interpretation — see ProgressionInterpretation */
+  interpretation?: ProgressionInterpretation;
 };
 
 // ─── Backward-compat alias ────────────────────────────────────────────────────
