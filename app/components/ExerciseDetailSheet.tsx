@@ -14,10 +14,18 @@ type Props = {
   onClose: () => void;
 };
 
+function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND_CONFIG {
+  if (p.analysis?.trend === "progressing") return "up";
+  if (p.analysis?.trend === "stagnating")  return "flat";
+  if (p.analysis?.trend === "regressing")  return "down";
+  return p.trend;
+}
+
 export default function ExerciseDetailSheet({ progression, onClose }: Props) {
-  const { name, muscleGroups, bestWeight, recentSessions, trend, analysis } = progression;
-  const t = TREND_CONFIG[trend];
-  const nextTarget = computeNextTarget(recentSessions, trend);
+  const { name, muscleGroups, bestWeight, recentSessions, analysis } = progression;
+  const trendKey   = resolvedTrendKey(progression);
+  const t          = TREND_CONFIG[trendKey];
+  const nextTarget = computeNextTarget(recentSessions, trendKey);
 
   const reasonText  = analysis?.reason ?? null;
   const currentE1RM = analysis?.currentE1RM ?? null;
@@ -90,7 +98,7 @@ export default function ExerciseDetailSheet({ progression, onClose }: Props) {
           </div>
 
           {/* Next Session recommendation */}
-          {nextWeight !== null && nextRepRange !== null && trend !== "none" && (
+          {nextWeight !== null && nextRepRange !== null && trendKey !== "none" && (
             <div className="bg-zinc-800/60 border border-zinc-700/40 rounded-2xl px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-red-500/80 mb-2">
                 Next Session

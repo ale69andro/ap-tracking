@@ -95,24 +95,26 @@ export function analyzeExerciseHistory(
       : null;
 
   // ── Trend classification ─────────────────────────────────────────────────────
+  // e1RM is the primary signal; weight/reps direction is secondary fallback only.
   let trend: "progressing" | "stagnating" | "regressing";
 
   if (!previous) {
     trend = "stagnating";
-  } else if (
-    (e1RMDelta !== null && e1RMDelta > MIN_PROGRESS_PCT) ||
-    (wDiff === 0 && rDiff > 0) ||
-    wDiff > 0
-  ) {
+  } else if (e1RMDelta !== null && e1RMDelta > MIN_PROGRESS_PCT) {
+    // Primary: e1RM clearly improved
     trend = "progressing";
-  } else if (
-    (e1RMDelta !== null && e1RMDelta < -MIN_REGRESS_PCT) ||
-    (wDiff === 0 && rDiff <= -2) ||
-    wDiff < 0
-  ) {
+  } else if (e1RMDelta !== null && e1RMDelta < -MIN_REGRESS_PCT) {
+    // Primary: e1RM clearly dropped
     trend = "regressing";
   } else {
-    trend = "stagnating";
+    // Secondary: e1RM absent or inconclusive — fall back to weight/reps signals
+    if (wDiff === 0 && rDiff > 0) {
+      trend = "progressing";
+    } else if (wDiff === 0 && rDiff <= -2) {
+      trend = "regressing";
+    } else {
+      trend = "stagnating";
+    }
   }
 
   const reason = buildReason(current, previous, trend, e1RMDelta, relevant.length);

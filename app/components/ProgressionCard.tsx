@@ -39,9 +39,16 @@ type Props = {
   onTap: () => void;
 };
 
+function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND_CONFIG {
+  if (p.analysis?.trend === "progressing") return "up";
+  if (p.analysis?.trend === "stagnating")  return "flat";
+  if (p.analysis?.trend === "regressing")  return "down";
+  return p.trend;
+}
+
 export default function ProgressionCard({ progression, onTap }: Props) {
-  const { name, muscleGroups, bestWeight, recentSessions, trend } = progression;
-  const t     = TREND_CONFIG[trend];
+  const { name, muscleGroups, bestWeight, recentSessions } = progression;
+  const t     = TREND_CONFIG[resolvedTrendKey(progression)];
   const delta = buildDelta(recentSessions);
 
   return (

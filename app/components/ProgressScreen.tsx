@@ -107,6 +107,13 @@ function Tile({
 
 // ─── Exercise Progress Card ────────────────────────────────────────────────────
 
+function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND {
+  if (p.analysis?.trend === "progressing") return "up";
+  if (p.analysis?.trend === "stagnating")  return "flat";
+  if (p.analysis?.trend === "regressing")  return "down";
+  return p.trend;
+}
+
 function ExerciseCard({
   p,
   onTap,
@@ -115,7 +122,7 @@ function ExerciseCard({
   onTap: () => void;
 }) {
   const delta   = getDelta(p.recentSessions);
-  const t       = TREND[p.trend];
+  const t       = TREND[resolvedTrendKey(p)];
   const insight = getInsight(p);
 
   const deltaColor = !delta || delta.neutral
