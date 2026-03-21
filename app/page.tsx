@@ -13,6 +13,7 @@ import ProgressScreen from "./components/ProgressScreen";
 import { useWorkout, getSessionDate } from "./hooks/useWorkout";
 import { useProgression } from "./hooks/useProgression";
 import { useTemplates } from "./hooks/useTemplates";
+import { useAuth } from "./hooks/useAuth";
 import AddExerciseModal from "./components/AddExerciseModal";
 import { PRESET_TEMPLATES } from "./constants/presetTemplates";
 import { DEMO_WORKOUTS } from "./constants/demoData";
@@ -64,6 +65,9 @@ export default function Home() {
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null);
   const [isEditingName, setIsEditingName]   = useState(false);
 
+  const { user, loading: authLoading, signOut } = useAuth();
+  const userId = user?.id ?? null;
+
   const {
     activeWorkout,
     completedSession,
@@ -82,12 +86,12 @@ export default function Home() {
     renameWorkout,
     clearTimer,
     dismissSummary,
-  } = useWorkout();
+  } = useWorkout(userId);
 
   const workoutActive = activeWorkout !== null;
   const exercises     = activeWorkout?.exercises ?? [];
 
-  const { templates, saveTemplate, deleteTemplate } = useTemplates();
+  const { templates, saveTemplate, deleteTemplate } = useTemplates(userId);
 
   const effectiveHistory =
     historySource === "demo"  ? [...DEMO_WORKOUTS, ...history] :
@@ -104,6 +108,10 @@ export default function Home() {
     startWorkout(template.name, template.id, template.exercises);
     setShowTemplates(false);
   };
+
+  if (authLoading) {
+    return <div className="min-h-screen bg-zinc-950" />;
+  }
 
   return (
     <>
@@ -196,13 +204,21 @@ export default function Home() {
 
           // ── Dashboard ──────────────────────────────────────────────────
           <>
-            <header className="mb-8">
-              <p className="text-red-500 text-[11px] font-bold tracking-widest uppercase mb-2">
-                AP-Tracking
-              </p>
-              <h1 className="text-4xl font-black text-white tracking-tight leading-none">
-                Dashboard
-              </h1>
+            <header className="mb-8 flex items-start justify-between">
+              <div>
+                <p className="text-red-500 text-[11px] font-bold tracking-widest uppercase mb-2">
+                  AP-Tracking
+                </p>
+                <h1 className="text-4xl font-black text-white tracking-tight leading-none">
+                  Dashboard
+                </h1>
+              </div>
+              <button
+                onClick={signOut}
+                className="text-zinc-600 hover:text-zinc-400 text-xs font-semibold transition-colors py-1.5 px-3 rounded-xl hover:bg-zinc-800 mt-1"
+              >
+                Sign out
+              </button>
             </header>
 
             <button

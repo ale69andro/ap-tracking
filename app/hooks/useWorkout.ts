@@ -8,6 +8,7 @@ import type {
   ActiveTimer,
   TemplateExercise,
 } from "@/app/types";
+import { createClient } from "@/lib/supabase/client";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -89,45 +90,121 @@ function migrateSession(raw: Record<string, unknown>): WorkoutSession {
   };
 }
 
+// ─── Supabase row mappers ─────────────────────────────────────────────────────
+
+type SessionRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  status: string;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  template_id: string | null;
+  exercises: SessionExercise[];
+};
+
+function rowToSession(row: SessionRow): WorkoutSession {
+  return {
+    id:              row.id,
+    name:            row.name,
+    status:          row.status as WorkoutSession["status"],
+    templateId:      row.template_id ?? undefined,
+    startedAt:       row.started_at ? new Date(row.started_at).getTime() : 0,
+    endedAt:         row.ended_at ? new Date(row.ended_at).getTime() : undefined,
+    durationSeconds: row.duration_seconds ?? undefined,
+    exercises:       row.exercises ?? [],
+  };
+}
+
+function sessionToRow(session: WorkoutSession, userId: string) {
+  return {
+    id:               session.id,
+    user_id:          userId,
+    name:             session.name,
+    status:           session.status,
+    template_id:      session.templateId ?? null,
+    started_at:       session.startedAt ? new Date(session.startedAt).toISOString() : null,
+    ended_at:         session.endedAt ? new Date(session.endedAt).toISOString() : null,
+    duration_seconds: session.durationSeconds ?? null,
+    exercises:        session.exercises,
+  };
+}
+
+// ─── localStorage key for active session ────────────────────────────────────
+
+const ACTIVE_KEY = "ap_active_workout";
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useWorkout() {
-  // Lazy init: recover any in-progress session on first load
+export function useWorkout(userId: string | null) {
+  // Active workout: per-device in localStorage, tagged with userId for safety.
+  // We load eagerly (sync) to avoid a flash, then validate userId in an effect.
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(() => {
     if (typeof window === "undefined") return null;
     try {
-      const stored = localStorage.getItem("ap_active_workout");
-      return stored ? migrateSession(JSON.parse(stored) as Record<string, unknown>) : null;
+      const raw = localStorage.getItem(ACTIVE_KEY);
+      return raw ? migrateSession(JSON.parse(raw) as Record<string, unknown>) : null;
     } catch {
       return null;
     }
   });
 
-  const [history, setHistory] = useState<WorkoutSession[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = localStorage.getItem("ap_workouts");
-      return stored
-        ? (JSON.parse(stored) as Record<string, unknown>[]).map(migrateSession)
-        : [];
-    } catch {
-      return [];
-    }
-  });
+  // Completed sessions: loaded from Supabase, starts empty until fetch resolves.
+  const [history, setHistory] = useState<WorkoutSession[]>([]);
+
   const [completedSession, setCompletedSession] = useState<WorkoutSession | null>(null);
-  const [activeTimer, setActiveTimer]       = useState<ActiveTimer | null>(null);
+  const [activeTimer, setActiveTimer]           = useState<ActiveTimer | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Persist active session so it survives page reloads
+  // ── Validate stored active workout against current user ──────────────────
+  // If the stored workout belongs to a different account, purge it from
+  // localStorage. The state reset happens via the return-value guard below.
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      const raw = localStorage.getItem(ACTIVE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        // _userId is written alongside every active-workout persist (see below).
+        if (parsed._userId && parsed._userId !== userId) {
+          localStorage.removeItem(ACTIVE_KEY);
+          // Defer state reset to avoid synchronous setState inside an effect.
+          Promise.resolve().then(() => setActiveWorkout(null));
+        }
+      }
+    } catch {
+      localStorage.removeItem(ACTIVE_KEY);
+    }
+  }, [userId]);
+
+  // ── Load completed sessions from Supabase on mount / user change ─────────
+  useEffect(() => {
+    if (!userId) return;
+    const supabase = createClient();
+    supabase
+      .from("workout_sessions")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "completed")
+      .order("started_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (error) { console.error("Failed to load sessions:", error); return; }
+        setHistory((data as SessionRow[] ?? []).map(rowToSession));
+      });
+  }, [userId]);
+
+  // ── Persist active session to localStorage (survives page reloads) ───────
   useEffect(() => {
     if (activeWorkout) {
-      localStorage.setItem("ap_active_workout", JSON.stringify(activeWorkout));
+      // Tag with userId so a different user on the same device can't inherit it.
+      localStorage.setItem(ACTIVE_KEY, JSON.stringify({ ...activeWorkout, _userId: userId }));
     } else {
-      localStorage.removeItem("ap_active_workout");
+      localStorage.removeItem(ACTIVE_KEY);
     }
-  }, [activeWorkout]);
+  }, [activeWorkout, userId]);
 
-  // ── Rest Timer ──
+  // ── Rest Timer ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -160,7 +237,7 @@ export function useWorkout() {
     setActiveTimer(null);
   };
 
-  // ── Session ──
+  // ── Session ────────────────────────────────────────────────────────────
 
   /**
    * Resolves the best starting weight for a template exercise.
@@ -175,7 +252,6 @@ export function useWorkout() {
     for (const session of history) {
       for (const exercise of session.exercises) {
         if (exercise.exerciseName !== exerciseName) continue;
-        // Prefer non-warm-up sets that have a valid weight
         const working  = exercise.sets.filter((s) => s.type !== "Warm-up" && parseFloat(s.weight) > 0);
         const anyValid = exercise.sets.filter((s) => parseFloat(s.weight) > 0);
         const pool     = working.length > 0 ? working : anyValid;
@@ -219,7 +295,7 @@ export function useWorkout() {
     setActiveWorkout((prev) => (prev ? { ...prev, name } : prev));
   };
 
-  // ── Exercises ──
+  // ── Exercises ────────────────────────────────────────────────────────────
 
   const addExercise = (exerciseName: string, muscleGroups: string[]) =>
     setActiveWorkout((prev) =>
@@ -231,7 +307,7 @@ export function useWorkout() {
       prev ? { ...prev, exercises: prev.exercises.filter((e) => e.id !== exId) } : prev
     );
 
-  // ── Sets ──
+  // ── Sets ─────────────────────────────────────────────────────────────────
 
   const addSet = (exId: string) =>
     setActiveWorkout((prev) => {
@@ -302,11 +378,12 @@ export function useWorkout() {
     if (activeTimer?.setId === setId) clearTimer();
   };
 
-  // ── Save / Reset ──
+  // ── Save / Reset ─────────────────────────────────────────────────────────
 
-  const saveWorkout = () => {
-    if (!activeWorkout || activeWorkout.exercises.length === 0) return;
+  const saveWorkout = async () => {
+    if (!activeWorkout || !userId || activeWorkout.exercises.length === 0) return;
     clearTimer();
+
     const now = Date.now();
     const session: WorkoutSession = {
       ...activeWorkout,
@@ -314,9 +391,18 @@ export function useWorkout() {
       endedAt:         now,
       durationSeconds: Math.round((now - activeWorkout.startedAt) / 1000),
     };
-    const updated = [session, ...history];
-    localStorage.setItem("ap_workouts", JSON.stringify(updated));
-    setHistory(updated);
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("workout_sessions")
+      .insert(sessionToRow(session, userId));
+
+    if (error) {
+      console.error("Failed to save workout:", error);
+      return;
+    }
+
+    setHistory((prev) => [session, ...prev]);
     setActiveWorkout(null);
     setCompletedSession(session);
   };
@@ -329,9 +415,10 @@ export function useWorkout() {
   };
 
   return {
-    activeWorkout,
-    completedSession,
-    history: history.filter((s) => s.status === "completed"),
+    // Gate on userId so stale state from a previous session is never exposed.
+    activeWorkout:    userId ? activeWorkout : null,
+    completedSession: userId ? completedSession : null,
+    history:          userId ? history.filter((s) => s.status === "completed") : [],
     activeTimer,
     addExercise,
     deleteExercise,
