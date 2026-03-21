@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { WorkoutTemplate, TemplateExercise } from "@/app/types";
+import type { WorkoutTemplate, TemplateExercise, LibraryExercise } from "@/app/types";
 import { LIBRARY, MUSCLE_GROUP_CATEGORIES } from "@/app/constants/exercises";
 
 // ─── Local draft type ─────────────────────────────────────────────────────────
@@ -237,10 +237,12 @@ function TemplateCard({
 type Props = {
   presets: WorkoutTemplate[];
   templates: WorkoutTemplate[];
+  userExercises: LibraryExercise[];
   onStart: (template: WorkoutTemplate) => void;
   onSave: (name: string, exercises: TemplateExercise[]) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
+  onCreateCustom: (name: string, muscleGroups: string[]) => Promise<LibraryExercise>;
 };
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -248,10 +250,12 @@ type Props = {
 export default function TemplatesSheet({
   presets,
   templates,
+  userExercises,
   onStart,
   onSave,
   onDelete,
   onClose,
+  onCreateCustom,
 }: Props) {
   const [mode, setMode]                     = useState<Mode>("list");
   const [newName, setNewName]               = useState("");
@@ -259,6 +263,13 @@ export default function TemplatesSheet({
   const [pickTarget, setPickTarget]         = useState<"new" | string>("new");
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch]                 = useState("");
+
+  // ── Custom exercise creation state (scoped to pick mode) ──
+  const [pickTab, setPickTab]               = useState<"library" | "custom">("library");
+  const [customName, setCustomName]         = useState("");
+  const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
+  const [saving, setSaving]                 = useState(false);
+  const [saveError, setSaveError]           = useState<string | null>(null);
 
   // ── Navigation helpers ──
 
@@ -284,6 +295,11 @@ export default function TemplatesSheet({
     setPickTarget(target);
     setActiveCategory("All");
     setSearch("");
+    setPickTab("library");
+    setCustomName("");
+    setSelectedMuscles([]);
+    setSaving(false);
+    setSaveError(null);
     setMode("pick");
   };
 
@@ -318,6 +334,30 @@ export default function TemplatesSheet({
   const deleteExercise = (id: string) =>
     setDraftExercises((prev) => prev.filter((e) => e.id !== id));
 
+  // ── Custom exercise creation ──
+
+  const toggleMuscle = (muscle: string) =>
+    setSelectedMuscles((prev) =>
+      prev.includes(muscle) ? prev.filter((m) => m !== muscle) : [...prev, muscle]
+    );
+
+  const handleCreateCustom = async () => {
+    const name = customName.trim();
+    if (!name || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const exercise = await onCreateCustom(name, selectedMuscles);
+      handlePickExercise(exercise.name, exercise.muscleGroups);
+    } catch (e) {
+      const msg = e instanceof Error && e.message === "DUPLICATE_EXERCISE"
+        ? "An exercise with this name already exists."
+        : "Could not save exercise. Please try again.";
+      setSaveError(msg);
+      setSaving(false);
+    }
+  };
+
   // ── Save ──
 
   const handleSave = () => {
@@ -338,10 +378,12 @@ export default function TemplatesSheet({
   // ── Exercise picker filter ──
 
   const filteredExercises = (() => {
-    let list = LIBRARY;
+    const builtInNames = new Set(LIBRARY.map((e) => e.name.toLowerCase()));
+    const customOnly = userExercises.filter((e) => !builtInNames.has(e.name.toLowerCase()));
+    let list = [...LIBRARY, ...customOnly];
     if (activeCategory !== "All") {
       const cat = MUSCLE_GROUP_CATEGORIES.find((c) => c.label === activeCategory);
-      if (cat) list = list.filter((ex) => ex.muscleGroups.some((m) => cat.muscles.includes(m)));
+      if (cat) list = list.filter((ex) => ex.muscleGroups.length === 0 || ex.muscleGroups.some((m) => cat.muscles.includes(m)));
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -500,61 +542,111 @@ export default function TemplatesSheet({
 
         {/* ── PICK ── */}
         {mode === "pick" && (
-          <div className="px-5 pt-4 pb-8 max-h-[70vh] overflow-y-auto">
+          <div className="max-h-[70vh] overflow-y-auto">
 
-            {/* Search */}
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search exercises…"
-              className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors mb-3"
-            />
+            {/* Tabs */}
+            <div className="flex border-b border-zinc-800">
+              {(["library", "custom"] as const).map((t) => (
+                <button key={t} onClick={() => setPickTab(t)}
+                  className={`flex-1 py-3 text-sm font-semibold transition-colors ${pickTab === t ? "text-red-500 border-b-2 border-red-500" : "text-zinc-500 hover:text-zinc-300"}`}>
+                  {t === "library" ? "Library" : "Custom"}
+                </button>
+              ))}
+            </div>
 
-            {/* Category pills */}
-            {!search.trim() && (
-              <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3">
-                {["All", ...MUSCLE_GROUP_CATEGORIES.map((c) => c.label)].map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
-                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                      activeCategory === cat
-                        ? "bg-red-600 text-white"
-                        : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
+            {pickTab === "library" ? (
+              <div className="px-5 pt-4 pb-8">
+                {/* Search */}
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search exercises…"
+                  className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors mb-3"
+                />
+
+                {/* Category pills */}
+                {!search.trim() && (
+                  <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3">
+                    {["All", ...MUSCLE_GROUP_CATEGORIES.map((c) => c.label)].map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setActiveCategory(cat)}
+                        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                          activeCategory === cat
+                            ? "bg-red-600 text-white"
+                            : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Exercise list */}
+                <div className="relative">
+                  <div className="space-y-0.5">
+                    {filteredExercises.length === 0 ? (
+                      <p className="text-zinc-600 text-sm text-center py-6">No exercises found.</p>
+                    ) : (
+                      filteredExercises.map((ex) => (
+                        <button
+                          key={ex.name}
+                          onClick={() => handlePickExercise(ex.name, ex.muscleGroups)}
+                          className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
+                        >
+                          <div className="text-left min-w-0">
+                            <p className="text-sm font-semibold text-zinc-100 truncate">{ex.name}</p>
+                            <p className="text-[11px] text-zinc-500">
+                              {ex.muscleGroups.join(" · ")}
+                              {ex.equipment && (
+                                <span className="text-zinc-700 ml-1.5">· {ex.equipment}</span>
+                              )}
+                            </p>
+                          </div>
+                          <span className="shrink-0 ml-3 text-zinc-700 font-black text-base">+</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-zinc-900 to-transparent" />
+                </div>
+              </div>
+            ) : (
+              <div className="px-5 pt-4 pb-8 space-y-4">
+                <div>
+                  <label className="block text-xs text-zinc-500 font-medium mb-2">Exercise name</label>
+                  <input type="text" value={customName} onChange={(e) => setCustomName(e.target.value)}
+                    placeholder="e.g. Bench Press Variation" autoFocus
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-xs text-zinc-500 font-medium mb-2">
+                    Muscle groups
+                    {selectedMuscles.length > 0 && <span className="ml-2 text-red-500 font-semibold">{selectedMuscles.length} selected</span>}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {MUSCLE_GROUP_CATEGORIES.map(({ label }) => (
+                      <button key={label} type="button" onClick={() => toggleMuscle(label)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${selectedMuscles.includes(label) ? "bg-red-600 border-red-600 text-white" : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {saveError && (
+                  <p className="text-xs text-red-400 font-medium">{saveError}</p>
+                )}
+                <button
+                  onClick={handleCreateCustom}
+                  disabled={!customName.trim() || saving}
+                  className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:pointer-events-none text-white font-semibold text-sm transition-colors"
+                >
+                  {saving ? "Saving…" : "Add Exercise"}
+                </button>
               </div>
             )}
-
-            {/* Exercise list */}
-            <div className="space-y-0.5">
-              {filteredExercises.length === 0 ? (
-                <p className="text-zinc-600 text-sm text-center py-6">No exercises found.</p>
-              ) : (
-                filteredExercises.map((ex) => (
-                  <button
-                    key={ex.name}
-                    onClick={() => handlePickExercise(ex.name, ex.muscleGroups)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
-                  >
-                    <div className="text-left min-w-0">
-                      <p className="text-sm font-semibold text-zinc-100 truncate">{ex.name}</p>
-                      <p className="text-[11px] text-zinc-500">
-                        {ex.muscleGroups.join(" · ")}
-                        {ex.equipment && (
-                          <span className="text-zinc-700 ml-1.5">· {ex.equipment}</span>
-                        )}
-                      </p>
-                    </div>
-                    <span className="shrink-0 ml-3 text-zinc-700 font-black text-base">+</span>
-                  </button>
-                ))
-              )}
-            </div>
           </div>
         )}
 

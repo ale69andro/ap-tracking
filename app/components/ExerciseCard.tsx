@@ -35,12 +35,12 @@ export default function ExerciseCard({
         <div className="min-w-0">
           <h3 className="text-sm font-bold text-white tracking-wide truncate">{exercise.exerciseName}</h3>
           {exercise.muscleGroups.length > 0 && (
-            <p className="text-[11px] text-zinc-600 mt-0.5 tracking-wide">
+            <p className="hidden sm:block text-[11px] text-zinc-600 mt-0.5 tracking-wide">
               {exercise.muscleGroups.join(" · ")}
             </p>
           )}
           {lastSession && lastSession.topWeight > 0 && lastSession.topReps > 0 && (
-            <p className="text-[11px] text-zinc-700 mt-0.5 tabular-nums">
+            <p className="hidden sm:block text-[11px] text-zinc-700 mt-0.5 tabular-nums">
               Last · {lastSession.topWeight} kg × {lastSession.topReps}
             </p>
           )}

@@ -14,6 +14,7 @@ import { useWorkout, getSessionDate } from "./hooks/useWorkout";
 import { useProgression } from "./hooks/useProgression";
 import { useTemplates } from "./hooks/useTemplates";
 import { useAuth } from "./hooks/useAuth";
+import { useExerciseLibrary } from "./hooks/useExerciseLibrary";
 import AddExerciseModal from "./components/AddExerciseModal";
 import { PRESET_TEMPLATES } from "./constants/presetTemplates";
 import { DEMO_WORKOUTS } from "./constants/demoData";
@@ -92,6 +93,7 @@ export default function Home() {
   const exercises     = activeWorkout?.exercises ?? [];
 
   const { templates, saveTemplate, deleteTemplate } = useTemplates(userId);
+  const { userExercises, createUserExercise } = useExerciseLibrary(userId);
 
   const effectiveHistory =
     historySource === "demo"  ? [...DEMO_WORKOUTS, ...history] :
@@ -100,6 +102,14 @@ export default function Home() {
   const progressions     = useProgression(effectiveHistory);
 
   const handleAddExercise = (name: string, muscleGroups: string[]) => {
+    addExercise(name, muscleGroups);
+    setShowModal(false);
+  };
+
+  const handleCreateCustomExercise = async (name: string, muscleGroups: string[]) => {
+    console.log("🔥 HANDLE CREATE CUSTOM CALLED");
+    // Throws on DB error — AddExerciseModal catches and shows the error to the user.
+    await createUserExercise(name, muscleGroups);
     addExercise(name, muscleGroups);
     setShowModal(false);
   };
@@ -116,7 +126,12 @@ export default function Home() {
   return (
     <>
       {showModal && (
-        <AddExerciseModal onAdd={handleAddExercise} onClose={() => setShowModal(false)} />
+        <AddExerciseModal
+          userExercises={userExercises}
+          onAdd={handleAddExercise}
+          onCreateCustom={handleCreateCustomExercise}
+          onClose={() => setShowModal(false)}
+        />
       )}
       {selectedExercise && (
         <ExerciseDetailSheet progression={selectedExercise} onClose={() => setSelectedExercise(null)} />
@@ -125,10 +140,12 @@ export default function Home() {
         <TemplatesSheet
           presets={PRESET_TEMPLATES}
           templates={templates}
+          userExercises={userExercises}
           onStart={handleStartFromTemplate}
           onSave={saveTemplate}
           onDelete={deleteTemplate}
           onClose={() => setShowTemplates(false)}
+          onCreateCustom={createUserExercise}
         />
       )}
       {selectedWorkout && (
@@ -315,7 +332,7 @@ export default function Home() {
           // ── Active Workout ─────────────────────────────────────────────
           <>
             {/* Sticky header */}
-            <header className="sticky top-0 bg-zinc-950/95 backdrop-blur-sm -mx-4 px-4 pt-10 pb-4 z-10 mb-5 border-b border-zinc-900">
+            <header className="sticky top-0 bg-zinc-950/95 backdrop-blur-sm -mx-4 px-4 pt-[max(2.5rem,env(safe-area-inset-top))] pb-4 z-10 mb-5 border-b border-zinc-900">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   {isEditingName ? (

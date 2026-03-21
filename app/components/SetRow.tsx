@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import type { ExerciseSet, ActiveTimer, SetType } from "@/app/types";
 import RestTimer from "./RestTimer";
 
@@ -36,6 +36,7 @@ export default function SetRow({
   const isTimerSet = activeTimer?.setId === set.id;
   const timerDone  = isTimerSet && activeTimer!.remaining === 0;
   const weightRef  = useRef<HTMLInputElement>(null);
+  const [showControls, setShowControls] = useState(false);
 
   useEffect(() => {
     if (isActive) weightRef.current?.focus();
@@ -66,17 +67,17 @@ export default function SetRow({
           <span className="text-sm font-semibold text-zinc-600 tabular-nums text-center">
             {set.reps || "—"}<span className="text-zinc-700 font-normal text-xs ml-0.5">reps</span>
           </span>
-          <div className="flex items-center justify-center gap-1">
+          <div className="flex items-center justify-center gap-1.5">
             <button
               onClick={onUncomplete}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors text-xs"
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors text-xs"
               title="Undo"
             >
               ↩
             </button>
             <button
               onClick={onDelete}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-700 hover:text-red-500 hover:bg-zinc-800 transition-colors text-[10px]"
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-700 hover:text-red-500 hover:bg-zinc-800 transition-colors text-[10px]"
               title="Delete"
             >
               ✕
@@ -99,12 +100,17 @@ export default function SetRow({
       <>
         <div className="grid grid-cols-[2rem_1fr_1fr_3.5rem] items-stretch gap-2 px-2 pt-2">
 
-          {/* Set number */}
-          <div className="flex items-center justify-center">
+          {/* Set number — tap to reveal secondary controls */}
+          <button
+            type="button"
+            onClick={() => setShowControls((v) => !v)}
+            className={`flex items-center justify-center w-full h-full rounded-lg transition-colors ${showControls ? "bg-zinc-800" : "bg-zinc-800/50 hover:bg-zinc-700/60"}`}
+            title={showControls ? "Hide options" : "Set options"}
+          >
             <span className={`text-xs font-black tabular-nums ${SET_TYPE_STYLES[set.type]}`}>
               {set.type === "Warm-up" ? "W" : set.type === "Drop Set" ? "D" : index + 1}
             </span>
-          </div>
+          </button>
 
           {/* Weight */}
           <div className="flex flex-col gap-1">
@@ -115,7 +121,7 @@ export default function SetRow({
               value={set.weight}
               onChange={(e) => onUpdate("weight", e.target.value)}
               placeholder="—"
-              className={`w-full bg-zinc-800 border border-zinc-700/80 rounded-lg px-2 font-semibold text-center text-white placeholder-zinc-700 focus:outline-none focus:border-red-500 transition-colors ${isActive ? "py-3.5 text-lg" : "py-3 text-base"}`}
+              className={`w-full bg-zinc-800 border border-zinc-700/80 rounded-lg px-2 font-semibold text-center text-white placeholder-zinc-700 focus:outline-none focus:border-red-500 transition-colors ${isActive ? "py-3.5 text-lg" : "py-3.5 text-base"}`}
             />
             <div className="flex gap-1">
               {([-2.5, +2.5, +5] as const).map((d) => (
@@ -135,7 +141,7 @@ export default function SetRow({
               value={set.reps}
               onChange={(e) => onUpdate("reps", e.target.value)}
               placeholder="—"
-              className={`w-full bg-zinc-800 border border-zinc-700/80 rounded-lg px-2 font-semibold text-center text-white placeholder-zinc-700 focus:outline-none focus:border-red-500 transition-colors ${isActive ? "py-3.5 text-lg" : "py-3 text-base"}`}
+              className={`w-full bg-zinc-800 border border-zinc-700/80 rounded-lg px-2 font-semibold text-center text-white placeholder-zinc-700 focus:outline-none focus:border-red-500 transition-colors ${isActive ? "py-3.5 text-lg" : "py-3.5 text-base"}`}
             />
             <div className="flex gap-1">
               {([-1, +1] as const).map((d) => (
@@ -157,35 +163,37 @@ export default function SetRow({
           </button>
         </div>
 
-        {/* Type · rest · delete */}
-        <div className="flex items-center gap-2 px-2 py-2">
-          <select
-            value={set.type}
-            onChange={(e) => onUpdate("type", e.target.value)}
-            className={`text-[10px] font-bold bg-transparent border-none focus:outline-none cursor-pointer appearance-none ${SET_TYPE_STYLES[set.type]}`}
-          >
-            {SET_TYPES.map((t) => (
-              <option key={t} value={t} className="text-zinc-100 bg-zinc-900">{t}</option>
-            ))}
-          </select>
-          <div className="flex-1" />
-          <span className="text-[10px] text-zinc-700 uppercase tracking-wider">Rest</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={set.restSeconds}
-            onChange={(e) => onUpdate("restSeconds", e.target.value)}
-            className="w-10 bg-transparent border border-zinc-800 rounded px-1 py-0.5 text-xs text-zinc-600 text-center focus:outline-none focus:border-zinc-600 transition-colors"
-          />
-          <span className="text-[10px] text-zinc-700">s</span>
-          <button
-            onClick={onDelete}
-            className="text-[10px] text-zinc-700 hover:text-red-500 transition-colors px-1 font-medium"
-            title="Delete set"
-          >
-            ✕
-          </button>
-        </div>
+        {/* Type · rest · delete — revealed by tapping the set number */}
+        {showControls && (
+          <div className="flex items-center gap-2 px-2 py-2">
+            <select
+              value={set.type}
+              onChange={(e) => onUpdate("type", e.target.value)}
+              className={`text-[10px] font-bold bg-transparent border-none focus:outline-none cursor-pointer appearance-none ${SET_TYPE_STYLES[set.type]}`}
+            >
+              {SET_TYPES.map((t) => (
+                <option key={t} value={t} className="text-zinc-100 bg-zinc-900">{t}</option>
+              ))}
+            </select>
+            <div className="flex-1" />
+            <span className="text-[10px] text-zinc-700 uppercase tracking-wider">Rest</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={set.restSeconds}
+              onChange={(e) => onUpdate("restSeconds", e.target.value)}
+              className="w-10 bg-transparent border border-zinc-800 rounded px-1 py-0.5 text-xs text-zinc-600 text-center focus:outline-none focus:border-zinc-600 transition-colors"
+            />
+            <span className="text-[10px] text-zinc-700">s</span>
+            <button
+              onClick={onDelete}
+              className="text-[10px] text-zinc-700 hover:text-red-500 transition-colors px-1 font-medium"
+              title="Delete set"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </>
 
     )}

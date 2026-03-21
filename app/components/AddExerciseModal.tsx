@@ -2,24 +2,36 @@
 
 import { useState } from "react";
 import { LIBRARY, MUSCLE_GROUP_CATEGORIES } from "@/app/constants/exercises";
+import type { LibraryExercise } from "@/app/types";
 
 type Props = {
+  userExercises: LibraryExercise[];
   onAdd: (name: string, muscleGroups: string[]) => void;
+  onCreateCustom: (name: string, muscleGroups: string[]) => Promise<void>;
   onClose: () => void;
 };
 
-export default function AddExerciseModal({ onAdd, onClose }: Props) {
+export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom, onClose }: Props) {
   const [tab, setTab] = useState<"library" | "custom">("library");
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [customName, setCustomName] = useState("");
   const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Merge built-in + user exercises. Built-in names win on case-insensitive collision.
+  const mergedLibrary = (() => {
+    const builtInNames = new Set(LIBRARY.map((e) => e.name.toLowerCase()));
+    const customOnly = userExercises.filter((e) => !builtInNames.has(e.name.toLowerCase()));
+    return [...LIBRARY, ...customOnly];
+  })();
 
   const visibleExercises = (() => {
-    let list = LIBRARY;
+    let list = mergedLibrary;
     if (activeCategory !== "All") {
       const cat = MUSCLE_GROUP_CATEGORIES.find((c) => c.label === activeCategory);
-      if (cat) list = list.filter((ex) => ex.muscleGroups.some((m) => cat.muscles.includes(m)));
+      if (cat) list = list.filter((ex) => ex.muscleGroups.length === 0 || ex.muscleGroups.some((m) => cat.muscles.includes(m)));
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -32,6 +44,25 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
     setSelectedMuscles((prev) =>
       prev.includes(muscle) ? prev.filter((m) => m !== muscle) : [...prev, muscle]
     );
+
+  const handleAddCustom = async () => {
+    console.log("🔥 CUSTOM BUTTON CLICKED");
+    const name = customName.trim();
+    if (!name || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onCreateCustom(name, selectedMuscles);
+      // On success page.tsx closes the modal and adds the exercise to the workout.
+    } catch (e) {
+      console.error("createUserExercise failed:", e);
+      const msg = e instanceof Error && e.message === "DUPLICATE_EXERCISE"
+        ? "An exercise with this name already exists."
+        : "Could not save exercise. Please try again.";
+      setSaveError(msg);
+      setSaving(false);
+    }
+  };
 
   return (
     <div
@@ -81,20 +112,23 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
                 </div>
               )}
 
-              <div className="max-h-80 overflow-y-auto -mx-1 px-1">
-                {visibleExercises.map((ex) => (
-                  <button
-                    key={ex.name}
-                    onClick={() => onAdd(ex.name, ex.muscleGroups)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
-                  >
-                    <div className="min-w-0 text-left">
-                      <p className="text-sm font-semibold text-zinc-100">{ex.name}</p>
-                      <p className="text-[11px] text-zinc-500 mt-0.5">{ex.muscleGroups.join(" · ")}</p>
-                    </div>
-                    <span className="text-zinc-700 font-black text-base ml-3 shrink-0">+</span>
-                  </button>
-                ))}
+              <div className="relative">
+                <div className="max-h-80 overflow-y-auto -mx-1 px-1">
+                  {visibleExercises.map((ex) => (
+                    <button
+                      key={ex.name}
+                      onClick={() => onAdd(ex.name, ex.muscleGroups)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
+                    >
+                      <div className="min-w-0 text-left">
+                        <p className="text-sm font-semibold text-zinc-100">{ex.name}</p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">{ex.muscleGroups.join(" · ")}</p>
+                      </div>
+                      <span className="text-zinc-700 font-black text-base ml-3 shrink-0">+</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-zinc-900 to-transparent" />
               </div>
             </div>
           ) : (
@@ -119,10 +153,15 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
                   ))}
                 </div>
               </div>
-              <button onClick={() => { if (customName.trim()) onAdd(customName.trim(), selectedMuscles); }}
-                disabled={!customName.trim()}
-                className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:pointer-events-none text-white font-semibold text-sm transition-colors">
-                Add Exercise
+              {saveError && (
+                <p className="text-xs text-red-400 font-medium">{saveError}</p>
+              )}
+              <button
+                onClick={handleAddCustom}
+                disabled={!customName.trim() || saving}
+                className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:pointer-events-none text-white font-semibold text-sm transition-colors"
+              >
+                {saving ? "Saving…" : "Add Exercise"}
               </button>
             </div>
           )}
