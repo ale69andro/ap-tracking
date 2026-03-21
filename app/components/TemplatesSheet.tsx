@@ -196,7 +196,7 @@ function TemplateCard({
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {isPreset && onCustomize && (
+          {onCustomize && (
             <button onClick={onCustomize}
               className="text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 px-2.5 py-1.5 rounded-full border border-zinc-700 hover:border-zinc-500 transition-colors">
               Customize
@@ -477,6 +477,7 @@ export default function TemplatesSheet({
                       template={t}
                       isPreset={false}
                       onStart={() => onStart(t)}
+                      onCustomize={() => startBuildFromPreset(t)}
                       onDelete={() => onDelete(t.id)}
                     />
                   ))}
