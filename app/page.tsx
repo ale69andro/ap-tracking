@@ -67,7 +67,7 @@ export default function Home() {
   const [showTemplates, setShowTemplates]   = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null);
   const [isEditingName, setIsEditingName]   = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [pendingExit, setPendingExit] = useState<"discard" | "save" | null>(null);
 
   const { user, loading: authLoading, signOut } = useAuth();
   const userId = user?.id ?? null;
@@ -125,9 +125,10 @@ export default function Home() {
     setShowTemplates(false);
   };
 
-  const handleCancelWorkout = () => {
-    resetWorkout();
-    setShowCancelConfirm(false);
+  const handleConfirmExit = async () => {
+    if (pendingExit === "save") await saveWorkout();
+    else resetWorkout();
+    setPendingExit(null);
   };
 
   if (authLoading) {
@@ -163,14 +164,14 @@ export default function Home() {
         <WorkoutDetailSheet workout={selectedWorkout} onClose={() => setSelectedWorkout(null)} />
       )}
 
-      {showCancelConfirm && workoutActive && (
+      {pendingExit && workoutActive && (
         <ConfirmModal
-          title="End workout?"
-          description="Your progress will be lost."
-          confirmLabel="End workout"
+          title={pendingExit === "save" ? "Finish workout?" : "End workout?"}
+          description={pendingExit === "save" ? "Your workout will be saved." : "Your progress will be lost."}
+          confirmLabel={pendingExit === "save" ? "Finish workout" : "End workout"}
           cancelLabel="Stay"
-          onConfirm={handleCancelWorkout}
-          onCancel={() => setShowCancelConfirm(false)}
+          onConfirm={handleConfirmExit}
+          onCancel={() => setPendingExit(null)}
         />
       )}
 
@@ -382,7 +383,7 @@ export default function Home() {
                   />
                 </div>
                 <button
-                  onClick={() => setShowCancelConfirm(true)}
+                  onClick={() => setPendingExit("discard")}
                   className="text-zinc-600 hover:text-zinc-400 text-xs font-semibold transition-colors py-1.5 px-3 rounded-xl hover:bg-zinc-800 shrink-0 mt-0.5"
                 >
                   Cancel
@@ -427,7 +428,7 @@ export default function Home() {
 
             {exercises.length > 0 && (
               <button
-                onClick={saveWorkout}
+                onClick={() => setPendingExit("save")}
                 className="mt-3 w-full py-4 rounded-2xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-sm tracking-widest uppercase transition-colors shadow-lg shadow-red-500/20"
               >
                 End Workout
