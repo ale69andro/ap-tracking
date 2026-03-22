@@ -140,7 +140,7 @@ function buildOutput(
         subtitle:       "Performance unchanged across recent sessions",
         recommendation: low
           ? "Push for one more rep next session"
-          : "Try varying reps, adding a set, or a short deload week",
+          : "Shift your rep target or run a short deload — repeating the same session won't break this",
       };
 
     case "fatigue_dip":
@@ -162,7 +162,7 @@ function buildOutput(
         subtitle:       low ? "Below prior level"      : "Sustained drop across recent sessions",
         recommendation: low
           ? "Reduce load slightly and focus on execution"
-          : "Deload, then reassess form, frequency, and recovery",
+          : "Cut the load back and rebuild with clean reps — don't add weight until sessions feel controlled again",
       };
   }
 }

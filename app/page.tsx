@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import ExerciseCard from "./components/ExerciseCard";
 import ProgressionCard from "./components/ProgressionCard";
 import ExerciseDetailSheet from "./components/ExerciseDetailSheet";
@@ -25,10 +25,13 @@ import AddExerciseModal from "./components/AddExerciseModal";
 import ConfirmModal from "./components/ConfirmModal";
 import TrainingDayCard from "./components/TrainingDayCard";
 import TrainingPlanSheet from "./components/TrainingPlanSheet";
+import { computeMuscleGroupLoadMap } from "@/lib/analysis/smartCoach";
+import { getTrainingDayHint } from "@/app/lib/trainingDayHint";
+import { COACH_TEST_SCENARIOS, COACH_TEST_INITIAL } from "./constants/coachTestScenarios";
+import type { CoachTestState } from "./constants/coachTestScenarios";
+import CoachTestPanel from "./components/CoachTestPanel";
 import { PRESET_TEMPLATES } from "./constants/presetTemplates";
-import { DEMO_WORKOUTS } from "./constants/demoData";
-import { ANALYSIS_TEST_WORKOUTS } from "./constants/analysisTestData";
-import type { ExerciseProgression, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate } from "./types";
+import type { Equipment, ExerciseProgression, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate } from "./types";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 import { useEffect } from "react";
 
@@ -72,7 +75,6 @@ export default function Home() {
   const [tab, setTab]                       = useState<"home" | "history" | "progress">("home");
   const [showModal, setShowModal]           = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<ExerciseProgression | null>(null);
-  const [historySource, setHistorySource]   = useState<"real" | "demo" | "test">("real");
   const [showTemplates, setShowTemplates]   = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null);
   const [isEditingName, setIsEditingName]   = useState(false);
@@ -82,6 +84,7 @@ export default function Home() {
   const [showTrainingPlan, setShowTrainingPlan]   = useState(false);
   const [planDraftDays, setPlanDraftDays]         = useState<TrainingDay[]>([]);
   const [pendingTemplateDayId, setPendingTemplateDayId] = useState<string | null>(null);
+  const [coachTest, setCoachTest] = useState<CoachTestState>(COACH_TEST_INITIAL);
 
   const { user, loading: authLoading, signOut } = useAuth();
   const userId = user?.id ?? null;
@@ -141,14 +144,29 @@ export default function Home() {
     clearPlan: clearTrainingPlan,
   } = useTrainingPlan(userId);
 
-  const effectiveHistory =
-    historySource === "demo"  ? [...DEMO_WORKOUTS, ...history] :
-    historySource === "test"  ? ANALYSIS_TEST_WORKOUTS :
-    history;
-  const progressions     = useProgression(effectiveHistory);
+  const progressions = useProgression(history);
+
+  // ── Coach test overrides (dev only) ───────────────────────────────────────
+  const activeScenario = COACH_TEST_SCENARIOS.find((s) => s.id === coachTest.scenarioId) ?? null;
+  const effectiveProgressions = activeScenario?.progressions ?? progressions;
+  const effectiveProfile = useMemo(
+    () => (coachTest.profileOverride && profile ? { ...profile, ...coachTest.profileOverride } : profile),
+    [profile, coachTest.profileOverride],
+  );
+
+  const muscleLoadMap = useMemo(
+    () => computeMuscleGroupLoadMap(effectiveProgressions),
+    [effectiveProgressions],
+  );
+  const effectiveMuscleLoadMap = activeScenario?.muscleLoadOverride ?? muscleLoadMap;
+
+  const coachHint = useMemo(
+    () => getTrainingDayHint(nextDay, templates, effectiveMuscleLoadMap),
+    [nextDay, templates, effectiveMuscleLoadMap],
+  );
 
   const handleAddExercise = (name: string, muscleGroups: string[]) => {
-    const prog = progressions.find((p) => p.name === name);
+    const prog = effectiveProgressions.find((p) => p.name === name);
     const targets = prog ? getExerciseTargets(prog) : null;
 
     const initialWeight =
@@ -164,10 +182,10 @@ export default function Home() {
     setShowModal(false);
   };
 
-  const handleCreateCustomExercise = async (name: string, muscleGroups: string[]) => {
+  const handleCreateCustomExercise = async (name: string, muscleGroups: string[], equipment?: Equipment) => {
     console.log("🔥 HANDLE CREATE CUSTOM CALLED");
     // Throws on DB error — AddExerciseModal catches and shows the error to the user.
-    await createUserExercise(name, muscleGroups);
+    await createUserExercise(name, muscleGroups, equipment);
     addExercise(name, muscleGroups);
     setShowModal(false);
   };
@@ -267,7 +285,7 @@ export default function Home() {
           onAdd={handleAddExercise}
           onCreateCustom={handleCreateCustomExercise}
           onClose={() => setShowModal(false)}
-          progressions={progressions}
+          progressions={effectiveProgressions}
         />
       )}
       {selectedExercise && (
@@ -403,7 +421,7 @@ export default function Home() {
         ) : tab === "progress" ? (
 
           // ── Progress ───────────────────────────────────────────────────
-          <ProgressScreen progressions={progressions} onTapExercise={setSelectedExercise} profile={profile ?? undefined} />
+          <ProgressScreen progressions={effectiveProgressions} onTapExercise={setSelectedExercise} profile={effectiveProfile ?? undefined} />
 
         ) : (
 
@@ -449,6 +467,7 @@ export default function Home() {
               nextDayIndex={nextDayIndex}
               lastCompletedDay={lastCompletedDay}
               lastCompletedAt={lastCompletedAt}
+              coachHint={coachHint}
               onStart={handleStartFromDay}
               onSetup={openTrainingPlanSheet}
             />
@@ -457,27 +476,15 @@ export default function Home() {
             <section className="mb-10">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-bold text-white">Progression</h2>
-                <div className="flex items-center gap-2">
-                  {progressions.length > 0 && (
-                    <span className="text-[10px] uppercase tracking-widest text-zinc-600">
-                      {progressions.length} exercise{progressions.length !== 1 ? "s" : ""}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setHistorySource((s) => s === "real" ? "demo" : s === "demo" ? "test" : "real")}
-                    className={`text-[11px] font-bold px-3 py-1.5 rounded-full border transition-colors ${
-                      historySource === "demo" ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-400" :
-                      historySource === "test" ? "border-amber-500/60 bg-amber-500/15 text-amber-400" :
-                      "border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-zinc-500 hover:text-white"
-                    }`}
-                  >
-                    {historySource === "demo" ? "● Demo" : historySource === "test" ? "● Test" : "Demo"}
-                  </button>
-                </div>
+                {effectiveProgressions.length > 0 && (
+                  <span className="text-[10px] uppercase tracking-widest text-zinc-600">
+                    {effectiveProgressions.length} exercise{effectiveProgressions.length !== 1 ? "s" : ""}
+                  </span>
+                )}
               </div>
-              {progressions.length > 0 ? (
+              {effectiveProgressions.length > 0 ? (
                 <div className="space-y-3">
-                  {progressions.map((p) => (
+                  {effectiveProgressions.map((p) => (
                     <ProgressionCard key={p.name} progression={p} onTap={() => setSelectedExercise(p)} />
                   ))}
                 </div>
@@ -569,7 +576,7 @@ export default function Home() {
             {/* Exercise cards */}
             <div className="space-y-3">
               {exercises.map((exercise, idx) => {
-                const prog = progressions.find((p) => p.name === exercise.exerciseName);
+                const prog = effectiveProgressions.find((p) => p.name === exercise.exerciseName);
                 const lastSessions = prog?.recentSessions ?? [];
                 const lastSess = lastSessions.length > 0 ? lastSessions[lastSessions.length - 1] : undefined;
                 return (
@@ -614,6 +621,10 @@ export default function Home() {
 
         )}
       </main>
+
+      {process.env.NODE_ENV === "development" && (
+        <CoachTestPanel state={coachTest} onChange={setCoachTest} />
+      )}
     </>
   );
 }

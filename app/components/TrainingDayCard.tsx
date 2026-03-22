@@ -8,6 +8,7 @@ interface Props {
   nextDayIndex: number | null;
   lastCompletedDay: TrainingDay | null;
   lastCompletedAt: number | null;
+  coachHint?: string;
   onStart: (day: TrainingDay, dayIndex: number) => void;
   onSetup: () => void;
 }
@@ -18,6 +19,7 @@ export default function TrainingDayCard({
   nextDayIndex,
   lastCompletedDay,
   lastCompletedAt,
+  coachHint,
   onStart,
   onSetup,
 }: Props) {
@@ -79,6 +81,14 @@ export default function TrainingDayCard({
           )}
         </div>
       </div>
+      {coachHint && (
+        <p className="text-[11px] text-zinc-500 mt-2 pt-2 border-t border-zinc-800/60">
+          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
+            Coach ·{" "}
+          </span>
+          {coachHint}
+        </p>
+      )}
     </div>
   );
 }

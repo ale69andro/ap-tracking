@@ -148,16 +148,16 @@ export function getSmartRecommendation({
       if (recentVolumeLevel === "high") {
         return experience === "advanced"
           ? "Volume is already high — a short deload may reset the stimulus before your next push"
-          : "Volume is solid — vary your rep range or shift intensity to break the plateau";
+          : "Volume is solid — try a heavier top set or change your rep range to force a new adaptation";
       }
       // Medium volume: standard structural advice
       if (goal === "strength") {
         return w != null
           ? `Wave the load over 3 sessions, then test ${w} kg — reset the stimulus`
-          : "Try a short deload or wave loading — straight linear jumps won't break this";
+          : "Run a short deload, then test a heavier top set — repeating the same load won't move the needle";
       }
       if (goal === "hypertrophy") {
-        return "Vary your rep range or add a back-off set — the muscle needs a new stimulus";
+        return "Shift to a different rep range next session or add a back-off set — a new signal is what restarts progress";
       }
       return "Vary reps, add a set, or run a short deload — something structural needs to change";
     }
@@ -179,7 +179,7 @@ export function getSmartRecommendation({
         return "Recovery looks solid — monitor next session; if the dip continues, consider a small load reduction";
       }
       // Medium sleep, medium volume: standard hold-steady
-      return "Hold current load and focus on quality reps — output will recover";
+      return "Keep the load where it is and focus on clean reps — output will come back";
     }
 
     // ── Regression: both latest delta and short trend are negative ────────────
@@ -201,7 +201,7 @@ export function getSmartRecommendation({
           ? `Deload to ${w} kg × ${r} reps — stop the decline before it compounds`
           : `Step back to ${w} kg × ${r} reps and rebuild`;
       }
-      return "Deload, then reassess form, frequency, and recovery before adding load";
+      return "Pull the load back and work through a clean session — don't add weight until the reps feel solid again";
     }
 
     // ── Clear forward momentum ────────────────────────────────────────────────
@@ -223,7 +223,7 @@ export function getSmartRecommendation({
         if (goal === "hypertrophy") return `Keep volume climbing — target ${w} kg × ${r} reps, or add a back-off set`;
         return `Keep going — next: ${w} kg × ${r} reps`;
       }
-      if (goal === "strength")    return "Add weight when reps feel smooth — bias toward heavier loads";
+      if (goal === "strength")    return "Reps are moving well — go heavier next session and keep the momentum going";
       if (goal === "hypertrophy") return "Chase reps before adding weight — stay in your rep range and add a set";
       return interpretation.recommendation;
     }
@@ -239,7 +239,7 @@ export function getSmartRecommendation({
           : "Momentum is building — stay consistent and keep increments small";
       }
       if (goal === "hypertrophy") {
-        return "Small gains are real gains — keep volume consistent and let the adaptation accumulate";
+        return "Real progress, just slow — keep volume steady and let it build";
       }
       return "Patience pays — stay consistent and keep increments small";
     }

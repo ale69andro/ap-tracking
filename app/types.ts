@@ -69,11 +69,67 @@ export type WorkoutHighlight = {
 
 // ─── Supporting Types ─────────────────────────────────────────────────────────
 
+export type Equipment =
+  | "Barbell"
+  | "Dumbbell"
+  | "Kettlebell"
+  | "EZ Bar"
+  | "Machine"
+  | "Cable"
+  | "Smith"
+  | "Bodyweight";
+
+export type ExerciseCategory =
+  | "Chest"
+  | "Back"
+  | "Shoulders"
+  | "Arms"
+  | "Legs"
+  | "Glutes"
+  | "Core";
+
+export type MovementType =
+  | "Press"
+  | "Row"
+  | "Pull-down"
+  | "Pull-up"
+  | "Hinge"
+  | "Squat"
+  | "Lunge"
+  | "Curl"
+  | "Extension"
+  | "Fly"
+  | "Raise"
+  | "Carry"
+  | "Hold"
+  | "Rotation";
+
+/** High-signal tags used by the coach for exercise selection and suggestions. */
+export type CoachTag = "compound" | "isolation" | "beginner" | "unilateral";
+
 export type LibraryExercise = {
   name: string;
   muscleGroups: string[];
-  /** Optional equipment tag — used for data completeness and future filtering. */
-  equipment?: "Barbell" | "Dumbbell" | "Machine" | "Cable" | "Bodyweight";
+  /** Optional equipment tag — present on all built-in exercises. */
+  equipment?: Equipment;
+};
+
+/**
+ * A richer built-in exercise entry. Extends LibraryExercise so all existing
+ * consumers continue to work unchanged.
+ *
+ * muscleGroups is always derived from primaryMuscleGroups + secondaryMuscleGroups
+ * via defineExercise() — the two cannot drift apart.
+ */
+export type BuiltInExercise = LibraryExercise & {
+  id: string;
+  category: ExerciseCategory;
+  primaryMuscleGroups: string[];
+  secondaryMuscleGroups: string[];
+  equipment: Equipment;
+  movementType: MovementType;
+  unilateral: boolean;
+  coachTags: CoachTag[];
 };
 
 export type ActiveTimer = {

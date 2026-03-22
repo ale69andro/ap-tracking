@@ -3,18 +3,24 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { LIBRARY } from "@/app/constants/exercises";
-import type { LibraryExercise } from "@/app/types";
+import type { LibraryExercise, Equipment } from "@/app/types";
 
 type UserExerciseRow = {
   id: string;
   user_id: string;
   name: string;
   muscle_groups: string[];
+  equipment: string | null;
   created_at: string;
 };
 
 function rowToLibraryExercise(row: UserExerciseRow): LibraryExercise {
-  return { name: row.name, muscleGroups: row.muscle_groups };
+  return {
+    name: row.name,
+    muscleGroups: row.muscle_groups,
+    // null (old rows without equipment) maps to undefined — backward-compatible
+    ...(row.equipment ? { equipment: row.equipment as Equipment } : {}),
+  };
 }
 
 export function useExerciseLibrary(userId: string | null) {
@@ -46,6 +52,7 @@ export function useExerciseLibrary(userId: string | null) {
   const createUserExercise = async (
     name: string,
     muscleGroups: string[],
+    equipment?: Equipment,
   ): Promise<LibraryExercise> => {
     console.log("🔥 CREATE USER EXERCISE CALLED");
     if (!userId) throw new Error("Not authenticated");
@@ -61,13 +68,13 @@ export function useExerciseLibrary(userId: string | null) {
 
     const { error } = await supabase
       .from("user_exercises")
-      .insert({ user_id: userId, name: normalizedName, muscle_groups: muscleGroups });
+      .insert({ user_id: userId, name: normalizedName, muscle_groups: muscleGroups, equipment: equipment ?? null });
 
     if (error) throw error;
 
     loadExercises();
 
-    return { name: normalizedName, muscleGroups };
+    return { name: normalizedName, muscleGroups, ...(equipment ? { equipment } : {}) };
   };
 
   return { userExercises, createUserExercise };

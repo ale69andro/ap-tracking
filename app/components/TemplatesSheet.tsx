@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { WorkoutTemplate, TemplateExercise, LibraryExercise } from "@/app/types";
+import type { WorkoutTemplate, TemplateExercise, LibraryExercise, Equipment } from "@/app/types";
 import { LIBRARY, MUSCLE_GROUP_CATEGORIES } from "@/app/constants/exercises";
 
 // ─── Local draft type ─────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ type Props = {
   onSave: (name: string, exercises: TemplateExercise[]) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
-  onCreateCustom: (name: string, muscleGroups: string[]) => Promise<LibraryExercise>;
+  onCreateCustom: (name: string, muscleGroups: string[], equipment?: Equipment) => Promise<LibraryExercise>;
 };
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -262,12 +262,14 @@ export default function TemplatesSheet({
   const [draftExercises, setDraftExercises] = useState<DraftExercise[]>([]);
   const [pickTarget, setPickTarget]         = useState<"new" | string>("new");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [activeEquipment, setActiveEquipment] = useState("All");
   const [search, setSearch]                 = useState("");
 
   // ── Custom exercise creation state (scoped to pick mode) ──
   const [pickTab, setPickTab]               = useState<"library" | "custom">("library");
   const [customName, setCustomName]         = useState("");
   const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | undefined>(undefined);
   const [saving, setSaving]                 = useState(false);
   const [saveError, setSaveError]           = useState<string | null>(null);
 
@@ -347,7 +349,7 @@ export default function TemplatesSheet({
     setSaving(true);
     setSaveError(null);
     try {
-      const exercise = await onCreateCustom(name, selectedMuscles);
+      const exercise = await onCreateCustom(name, selectedMuscles, selectedEquipment);
       handlePickExercise(exercise.name, exercise.muscleGroups);
     } catch (e) {
       const msg = e instanceof Error && e.message === "DUPLICATE_EXERCISE"
@@ -377,13 +379,32 @@ export default function TemplatesSheet({
 
   // ── Exercise picker filter ──
 
-  const filteredExercises = (() => {
+  // 1. Merge + category filter
+  const categoryFiltered = (() => {
     const builtInNames = new Set(LIBRARY.map((e) => e.name.toLowerCase()));
     const customOnly = userExercises.filter((e) => !builtInNames.has(e.name.toLowerCase()));
-    let list = [...LIBRARY, ...customOnly];
-    if (activeCategory !== "All") {
-      const cat = MUSCLE_GROUP_CATEGORIES.find((c) => c.label === activeCategory);
-      if (cat) list = list.filter((ex) => ex.muscleGroups.length === 0 || ex.muscleGroups.some((m) => cat.muscles.includes(m)));
+    const merged = [...LIBRARY, ...customOnly];
+    if (activeCategory === "All") return merged;
+    const cat = MUSCLE_GROUP_CATEGORIES.find((c) => c.label === activeCategory);
+    if (!cat) return merged;
+    return merged.filter((ex) => ex.muscleGroups.length === 0 || ex.muscleGroups.some((m) => cat.muscles.includes(m)));
+  })();
+
+  // 2. Derive available equipment chips from category-filtered built-ins (exercises with equipment set)
+  const equipmentOptions: string[] = (() => {
+    const seen = new Set<string>();
+    for (const ex of categoryFiltered) {
+      if (ex.equipment) seen.add(ex.equipment);
+    }
+    return Array.from(seen);
+  })();
+
+  // 3. Equipment + search filter
+  const filteredExercises = (() => {
+    let list = categoryFiltered;
+    if (activeEquipment !== "All") {
+      // User exercises (equipment === undefined) always pass — they carry no equipment metadata
+      list = list.filter((ex) => ex.equipment === undefined || ex.equipment === activeEquipment);
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -574,22 +595,41 @@ export default function TemplatesSheet({
                   className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors mb-3"
                 />
 
-                {/* Category pills */}
+                {/* Category + equipment pills */}
                 {!search.trim() && (
-                  <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3">
-                    {["All", ...MUSCLE_GROUP_CATEGORIES.map((c) => c.label)].map((cat) => (
-                      <button
-                        key={cat}
-                        onClick={() => setActiveCategory(cat)}
-                        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                          activeCategory === cat
-                            ? "bg-red-600 text-white"
-                            : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
+                  <div className="space-y-1.5 mb-3">
+                    <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                      {["All", ...MUSCLE_GROUP_CATEGORIES.map((c) => c.label)].map((cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => { setActiveCategory(cat); setActiveEquipment("All"); }}
+                          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                            activeCategory === cat
+                              ? "bg-red-600 text-white"
+                              : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                    {equipmentOptions.length > 0 && (
+                      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                        {["All", ...equipmentOptions].map((eq) => (
+                          <button
+                            key={eq}
+                            onClick={() => setActiveEquipment(eq)}
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                              activeEquipment === eq
+                                ? "bg-zinc-600 text-white"
+                                : "bg-zinc-800 text-zinc-500 hover:text-zinc-300"
+                            }`}
+                          >
+                            {eq}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -640,6 +680,18 @@ export default function TemplatesSheet({
                       <button key={label} type="button" onClick={() => toggleMuscle(label)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${selectedMuscles.includes(label) ? "bg-red-600 border-red-600 text-white" : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"}`}>
                         {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-zinc-500 font-medium mb-2">Equipment <span className="text-zinc-600">(optional)</span></label>
+                  <div className="flex flex-wrap gap-2">
+                    {(["Barbell", "Dumbbell", "Kettlebell", "EZ Bar", "Machine", "Cable", "Smith", "Bodyweight"] as Equipment[]).map((eq) => (
+                      <button key={eq} type="button"
+                        onClick={() => setSelectedEquipment((prev) => prev === eq ? undefined : eq)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${selectedEquipment === eq ? "bg-zinc-600 border-zinc-500 text-white" : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"}`}>
+                        {eq}
                       </button>
                     ))}
                   </div>
