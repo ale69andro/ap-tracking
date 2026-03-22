@@ -177,6 +177,7 @@ export default function Home() {
           onAdd={handleAddExercise}
           onCreateCustom={handleCreateCustomExercise}
           onClose={() => setShowModal(false)}
+          progressions={progressions}
         />
       )}
       {selectedExercise && (

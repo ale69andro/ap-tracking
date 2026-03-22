@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 import { LIBRARY, MUSCLE_GROUP_CATEGORIES } from "@/app/constants/exercises";
-import type { LibraryExercise } from "@/app/types";
+import type { LibraryExercise, ExerciseProgression } from "@/app/types";
+import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
+import type { ExerciseTargets } from "@/lib/analysis/getExerciseTargets";
 
 type Props = {
   userExercises: LibraryExercise[];
   onAdd: (name: string, muscleGroups: string[]) => void;
   onCreateCustom: (name: string, muscleGroups: string[]) => Promise<void>;
   onClose: () => void;
+  progressions?: ExerciseProgression[];
 };
 
-export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom, onClose }: Props) {
+export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom, onClose, progressions }: Props) {
   const [tab, setTab] = useState<"library" | "custom">("library");
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
@@ -19,6 +22,11 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
   const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Precompute targets per exercise name (lowercase key) from available progressions.
+  const targetsMap = new Map<string, ExerciseTargets>(
+    (progressions ?? []).map((p) => [p.name.toLowerCase(), getExerciseTargets(p)])
+  );
 
   // Merge built-in + user exercises. Built-in names win on case-insensitive collision.
   const mergedLibrary = (() => {
@@ -114,19 +122,43 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
 
               <div className="relative">
                 <div className="max-h-80 overflow-y-auto -mx-1 px-1">
-                  {visibleExercises.map((ex) => (
-                    <button
-                      key={ex.name}
-                      onClick={() => onAdd(ex.name, ex.muscleGroups)}
-                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
-                    >
-                      <div className="min-w-0 text-left">
-                        <p className="text-sm font-semibold text-zinc-100">{ex.name}</p>
-                        <p className="text-[11px] text-zinc-500 mt-0.5">{ex.muscleGroups.join(" · ")}</p>
-                      </div>
-                      <span className="text-zinc-700 font-black text-base ml-3 shrink-0">+</span>
-                    </button>
-                  ))}
+                  {visibleExercises.map((ex) => {
+                    const key = ex.name.toLowerCase();
+                    const targets = targetsMap.get(key);
+                    const hasProgression = targetsMap.has(key);
+                    const showNoHistory = hasProgression && !targets?.last && !targets?.target;
+
+                    return (
+                      <button
+                        key={ex.name}
+                        onClick={() => onAdd(ex.name, ex.muscleGroups)}
+                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
+                      >
+                        <div className="min-w-0 text-left">
+                          <p className="text-sm font-semibold text-zinc-100">{ex.name}</p>
+                          {ex.muscleGroups.length > 0 && (
+                            <p className="text-[11px] text-zinc-500 mt-0.5">{ex.muscleGroups.join(" · ")}</p>
+                          )}
+                          {showNoHistory && (
+                            <p className="text-[11px] text-zinc-700 mt-0.5">No history yet</p>
+                          )}
+                          {targets?.last && (
+                            <p className="text-[11px] text-zinc-500 mt-0.5 tabular-nums">
+                              Last · {targets.last.weight} kg × {targets.last.reps}
+                            </p>
+                          )}
+                          {targets?.target && (targets.target.weight != null || targets.target.repRange != null) && (
+                            <p className="text-[11px] text-red-500/80 tabular-nums">
+                              Coach · {targets.target.weight != null ? `${targets.target.weight} kg` : ""}
+                              {targets.target.weight != null && targets.target.repRange ? " × " : ""}
+                              {targets.target.repRange ?? ""}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-zinc-700 font-black text-base ml-3 shrink-0">+</span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-zinc-900 to-transparent" />
               </div>
