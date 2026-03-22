@@ -9,15 +9,19 @@ const uid = () => crypto.randomUUID();
 interface Props {
   plan: TrainingPlan | null;
   templates: WorkoutTemplate[];
+  days: TrainingDay[];
+  onDaysChange: (days: TrainingDay[]) => void;
   onSave: (plan: TrainingPlan) => void;
   onClear: () => void;
   onClose: () => void;
-  onCreateTemplate: () => void;
+  onCreateTemplate: (dayId: string) => void;
 }
 
 export default function TrainingPlanSheet({
   plan,
   templates,
+  days,
+  onDaysChange,
   onSave,
   onClear,
   onClose,
@@ -25,7 +29,6 @@ export default function TrainingPlanSheet({
 }: Props) {
   // Lazy init — this sheet is always mounted fresh, no external sync needed
   const [name, setName] = useState(() => plan?.name ?? "My Plan");
-  const [days, setDays] = useState<TrainingDay[]>(() => plan?.days ?? []);
 
   // Tracks which day IDs have had their label manually edited by the user.
   // Once a day is in this set, auto-fill will never overwrite its label —
@@ -39,22 +42,21 @@ export default function TrainingPlanSheet({
   const allTemplates: WorkoutTemplate[] = [...PRESET_TEMPLATES, ...templates];
 
   const addDay = () =>
-    setDays((prev) => [
-      ...prev,
-      { id: uid(), dayNumber: prev.length + 1, label: undefined, templateId: undefined },
+    onDaysChange([
+      ...days,
+      { id: uid(), dayNumber: days.length + 1, label: undefined, templateId: undefined },
     ]);
 
-  const removeDay = (id: string) =>
-    setDays((prev) => {
-      const filtered = prev.filter((d) => d.id !== id);
-      return filtered.map((d, i) => ({ ...d, dayNumber: i + 1 }));
-    });
+  const removeDay = (id: string) => {
+    const filtered = days.filter((d) => d.id !== id);
+    onDaysChange(filtered.map((d, i) => ({ ...d, dayNumber: i + 1 })));
+  };
 
   // Always marks the day as user-edited, even when clearing to empty.
   const updateLabel = (id: string, value: string) => {
     setLabelEditedByUser((prev) => new Set(prev).add(id));
-    setDays((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, label: value || undefined } : d))
+    onDaysChange(
+      days.map((d) => (d.id === id ? { ...d, label: value || undefined } : d))
     );
   };
 
@@ -65,8 +67,8 @@ export default function TrainingPlanSheet({
     const templateName = templateId
       ? (allTemplates.find((t) => t.id === templateId)?.name ?? "")
       : "";
-    setDays((prev) =>
-      prev.map((d) => {
+    onDaysChange(
+      days.map((d) => {
         if (d.id !== id) return d;
         const autoFill = !labelEditedByUser.has(id) && templateName;
         return {
@@ -162,9 +164,9 @@ export default function TrainingPlanSheet({
                 ))}
               </select>
 
-              {/* Create new template — opens TemplatesSheet on top */}
+              {/* Create new template — enters template creation sub-flow */}
               <button
-                onClick={onCreateTemplate}
+                onClick={() => onCreateTemplate(day.id)}
                 title="Create new template"
                 className="w-6 text-zinc-600 hover:text-zinc-300 transition-colors text-base font-black shrink-0 text-center"
               >

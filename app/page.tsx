@@ -27,7 +27,7 @@ import TrainingPlanSheet from "./components/TrainingPlanSheet";
 import { PRESET_TEMPLATES } from "./constants/presetTemplates";
 import { DEMO_WORKOUTS } from "./constants/demoData";
 import { ANALYSIS_TEST_WORKOUTS } from "./constants/analysisTestData";
-import type { ExerciseProgression, TrainingDay, WorkoutSession, WorkoutTemplate } from "./types";
+import type { ExerciseProgression, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate } from "./types";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 import { useEffect } from "react";
 
@@ -79,6 +79,8 @@ export default function Home() {
   const [confirming, setConfirming]       = useState(false);
   const [showProfileSheet, setShowProfileSheet]   = useState(false);
   const [showTrainingPlan, setShowTrainingPlan]   = useState(false);
+  const [planDraftDays, setPlanDraftDays]         = useState<TrainingDay[]>([]);
+  const [pendingTemplateDayId, setPendingTemplateDayId] = useState<string | null>(null);
 
   const { user, loading: authLoading, signOut } = useAuth();
   const userId = user?.id ?? null;
@@ -168,6 +170,50 @@ export default function Home() {
     startWorkout(name, template?.id, template?.exercises, dayIndex);
   };
 
+  /** Open the training plan sheet, initializing draft days from the current saved plan. */
+  const openTrainingPlanSheet = () => {
+    setPlanDraftDays(trainingPlan?.days ?? []);
+    setShowTrainingPlan(true);
+  };
+
+  /**
+   * Called when user taps "+" on a day row inside TrainingPlanSheet.
+   * Records which day triggered template creation, then opens TemplatesSheet
+   * on top — TrainingPlanSheet stays mounted but is hidden via CSS.
+   */
+  const handleCreateTemplateFromPlan = (dayId: string) => {
+    setPendingTemplateDayId(dayId);
+    setShowTemplates(true);
+  };
+
+  /**
+   * Unified save handler for TemplatesSheet.
+   * After saving, if triggered from the plan sub-flow, auto-selects the new
+   * template for the triggering day, closes TemplatesSheet, and returns to plan.
+   */
+  const handleSaveTemplate = async (name: string, exercises: TemplateExercise[]) => {
+    const newTemplate = await saveTemplate(name, exercises);
+    if (pendingTemplateDayId && newTemplate) {
+      setPlanDraftDays((prev) =>
+        prev.map((d) =>
+          d.id === pendingTemplateDayId ? { ...d, templateId: newTemplate.id } : d
+        )
+      );
+      setPendingTemplateDayId(null);
+      setShowTemplates(false);
+    }
+  };
+
+  /**
+   * Close handler for TemplatesSheet.
+   * If the sheet was opened as part of the plan sub-flow, clears the pending
+   * day ID so TrainingPlanSheet becomes visible again without auto-selecting.
+   */
+  const handleTemplatesClose = () => {
+    setShowTemplates(false);
+    setPendingTemplateDayId(null);
+  };
+
   // When a workout that was started from a plan day is saved, advance the progress
   useEffect(() => {
     if (completedSession?.trainingDayIndex != null) {
@@ -219,9 +265,9 @@ export default function Home() {
           templates={templates}
           userExercises={userExercises}
           onStart={handleStartFromTemplate}
-          onSave={saveTemplate}
+          onSave={handleSaveTemplate}
           onDelete={deleteTemplate}
-          onClose={() => setShowTemplates(false)}
+          onClose={handleTemplatesClose}
           onCreateCustom={createUserExercise}
         />
       )}
@@ -235,14 +281,21 @@ export default function Home() {
       )}
 
       {showTrainingPlan && (
-        <TrainingPlanSheet
-          plan={trainingPlan}
-          templates={templates}
-          onSave={saveTrainingPlan}
-          onClear={clearTrainingPlan}
-          onClose={() => setShowTrainingPlan(false)}
-          onCreateTemplate={() => setShowTemplates(true)}
-        />
+        // Wrapper hidden while TemplatesSheet is active — keeps the component
+        // mounted (preserving name + labelEditedByUser state) but fully removes
+        // it from the visible and interactable layer.
+        <div className={showTemplates ? "hidden" : undefined}>
+          <TrainingPlanSheet
+            plan={trainingPlan}
+            templates={templates}
+            days={planDraftDays}
+            onDaysChange={setPlanDraftDays}
+            onSave={saveTrainingPlan}
+            onClear={clearTrainingPlan}
+            onClose={() => setShowTrainingPlan(false)}
+            onCreateTemplate={handleCreateTemplateFromPlan}
+          />
+        </div>
       )}
 
       {selectedWorkout && (
@@ -383,7 +436,7 @@ export default function Home() {
               lastCompletedDay={lastCompletedDay}
               lastCompletedAt={lastCompletedAt}
               onStart={handleStartFromDay}
-              onSetup={() => setShowTrainingPlan(true)}
+              onSetup={openTrainingPlanSheet}
             />
 
             {/* Progression */}

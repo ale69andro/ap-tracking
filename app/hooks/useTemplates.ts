@@ -89,8 +89,8 @@ export function useTemplates(userId: string | null) {
       });
   }, [userId]);
 
-  const saveTemplate = async (name: string, exercises: TemplateExercise[]) => {
-    if (!userId) return;
+  const saveTemplate = async (name: string, exercises: TemplateExercise[]): Promise<WorkoutTemplate | null> => {
+    if (!userId) return null;
     const supabase = createClient();
     const newTemplate: WorkoutTemplate = {
       id:        crypto.randomUUID(),
@@ -102,8 +102,9 @@ export function useTemplates(userId: string | null) {
       .from("workout_templates")
       .insert(templateToRow(newTemplate, userId));
 
-    if (error) { console.error("Failed to save template:", error); return; }
+    if (error) { console.error("Failed to save template:", error); return null; }
     setTemplates((prev) => [...prev, newTemplate]);
+    return newTemplate;
   };
 
   const deleteTemplate = async (id: string) => {
