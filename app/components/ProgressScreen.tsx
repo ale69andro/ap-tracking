@@ -1,8 +1,9 @@
 "use client";
 
-import type { ExerciseProgression, ExerciseSession } from "@/app/types";
+import type { ExerciseProgression, ExerciseSession, UserProfile } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
+import { getSmartRecommendation } from "@/lib/analysis/smartCoach";
 import SparkLine from "./SparkLine";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -95,31 +96,49 @@ function getChartInterpretation(p: ExerciseProgression): string | null {
   return p.analysis?.interpretation?.subtitle ?? null;
 }
 
-function getActionText(p: ExerciseProgression): string {
-  const trend = p.analysis?.trend;
-  const conf  = p.analysis?.confidence;
-  const w     = p.analysis?.suggestedNextWeight;
-  const reps  = p.analysis?.suggestedRepRange;
+function getActionText(p: ExerciseProgression, profile?: UserProfile): string {
+  const ms           = p.analysis?.interpretation?.mappedStatus;
+  const status       = p.analysis?.interpretation?.status;
+  const conf         = p.analysis?.confidence;
+  const w            = p.analysis?.suggestedNextWeight;
+  const reps         = p.analysis?.suggestedRepRange;
+  const interp       = p.analysis?.interpretation;
 
-  if (trend === "regressing") {
+  // Helper: resolve recommendation — smart coach when profile available, else raw interpretation copy
+  const recommend = (): string => {
+    if (interp && profile) {
+      return getSmartRecommendation({
+        interpretation: interp,
+        profile,
+        metrics: { suggestedNextWeight: w, suggestedRepRange: reps, confidence: conf },
+        recentSessions: p.recentSessions,
+      });
+    }
+    return interp?.recommendation ?? "Keep logging to unlock insights";
+  };
+
+  if (ms === "regressing") {
     if (w != null && reps != null) {
       return conf === "high"
         ? `Deload to ${w} kg × ${reps} reps — stop the decline`
         : `Step back to ${w} kg × ${reps} reps`;
     }
-    return "Reduce load — focus on form and consistency";
+    return recommend();
   }
 
-  if (trend === "stagnating") {
+  if (ms === "stagnating") {
+    // fatigue_dip: always use personalized/raw recommendation — never show a load-push target
+    if (status === "fatigue_dip") return recommend();
+    // stalling / stable: show concrete target if available, else personalized copy
     if (w != null && reps != null) {
       return conf === "high"
         ? `Plateau detected — push to ${w} kg × ${reps} reps`
         : `Try ${w} kg × ${reps} reps to break the plateau`;
     }
-    return "Hold weight — push for +1 rep next session";
+    return recommend();
   }
 
-  if (trend === "progressing" && w != null && reps != null) {
+  if (ms === "progressing" && w != null && reps != null) {
     return `Keep going — next: ${w} kg × ${reps} reps`;
   }
 
@@ -132,8 +151,7 @@ function getActionText(p: ExerciseProgression): string {
     return `Next → ${target.weight} kg × ${repsStr} reps`;
   }
 
-  // Last resort: coaching note from the interpretation layer
-  return p.analysis?.interpretation?.recommendation ?? "Keep logging to unlock insights";
+  return recommend();
 }
 
 function computeOverview(progressions: ExerciseProgression[]) {
@@ -225,10 +243,10 @@ function SectionHeader({ label, color, count }: { label: string; color: string; 
 
 // ─── Focus Today Card ─────────────────────────────────────────────────────────
 
-function FocusTodayCard({ p, onTap }: { p: ExerciseProgression; onTap: () => void }) {
+function FocusTodayCard({ p, onTap, profile }: { p: ExerciseProgression; onTap: () => void; profile?: UserProfile }) {
   const delta  = getDelta(p.recentSessions);
   const t      = TREND[resolvedTrendKey(p)];
-  const action = getActionText(p);
+  const action = getActionText(p, profile);
 
   return (
     <button
@@ -260,22 +278,25 @@ function FocusTodayCard({ p, onTap }: { p: ExerciseProgression; onTap: () => voi
 // ─── Exercise Progress Card ────────────────────────────────────────────────────
 
 function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND {
-  if (p.analysis?.trend === "progressing") return "up";
-  if (p.analysis?.trend === "stagnating")  return "flat";
-  if (p.analysis?.trend === "regressing")  return "down";
+  const ms = p.analysis?.interpretation?.mappedStatus;
+  if (ms === "progressing") return "up";
+  if (ms === "stagnating")  return "flat";
+  if (ms === "regressing")  return "down";
   return p.trend;
 }
 
 function ExerciseCard({
   p,
   onTap,
+  profile,
 }: {
   p: ExerciseProgression;
   onTap: () => void;
+  profile?: UserProfile;
 }) {
   const delta         = getDelta(p.recentSessions);
   const t             = TREND[resolvedTrendKey(p)];
-  const insight       = getActionText(p);
+  const insight       = getActionText(p, profile);
   const chartCaption  = getChartInterpretation(p);
   const sessionCount  = p.recentSessions.length;
   const isEarlyData   = sessionCount < 4;
@@ -355,6 +376,7 @@ function ExerciseCard({
 type Props = {
   progressions: ExerciseProgression[];
   onTapExercise: (p: ExerciseProgression) => void;
+  profile?: UserProfile;
 };
 
 const SECTION_CONFIG = [
@@ -380,7 +402,7 @@ function groupProgressions(progressions: ExerciseProgression[]) {
     .filter(s => s.items.length > 0);
 }
 
-export default function ProgressScreen({ progressions, onTapExercise }: Props) {
+export default function ProgressScreen({ progressions, onTapExercise, profile }: Props) {
   const overview = computeOverview(progressions);
   const groups   = groupProgressions(progressions);
   const focus    = progressions.length >= 2
@@ -444,7 +466,7 @@ export default function ProgressScreen({ progressions, onTapExercise }: Props) {
 
           {/* Focus Today */}
           {focus && (
-            <FocusTodayCard p={focus} onTap={() => onTapExercise(focus)} />
+            <FocusTodayCard p={focus} onTap={() => onTapExercise(focus)} profile={profile} />
           )}
 
           {/* Exercise cards grouped by trend */}
@@ -454,7 +476,7 @@ export default function ProgressScreen({ progressions, onTapExercise }: Props) {
                 <SectionHeader label={group.label} color={group.color} count={group.items.length} />
                 <div className="space-y-4">
                   {group.items.map((p) => (
-                    <ExerciseCard key={p.name} p={p} onTap={() => onTapExercise(p)} />
+                    <ExerciseCard key={p.name} p={p} onTap={() => onTapExercise(p)} profile={profile} />
                   ))}
                 </div>
               </div>

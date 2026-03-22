@@ -95,6 +95,7 @@ function buildOutput(
     case "progressing":
       return {
         status,
+        mappedStatus: "progressing",
         confidence,
         title:          low ? "Looking good so far"       : "Strength trending up",
         subtitle:       low ? "Early signs of progress"   : "Consistent gains over recent sessions",
@@ -104,6 +105,7 @@ function buildOutput(
     case "improving_slightly":
       return {
         status,
+        mappedStatus: "progressing",
         confidence,
         title:          "Slowly improving",
         subtitle:       "Small but real gains — building momentum",
@@ -113,6 +115,7 @@ function buildOutput(
     case "stable":
       return {
         status,
+        mappedStatus: "stagnating",
         confidence,
         title:          "Strength holding steady",
         subtitle:       "Performance consistent with recent sessions",
@@ -122,6 +125,7 @@ function buildOutput(
     case "stalling":
       return {
         status,
+        mappedStatus: "stagnating",
         confidence,
         title:          "No meaningful progress",
         subtitle:       "Performance unchanged across recent sessions",
@@ -133,6 +137,7 @@ function buildOutput(
     case "fatigue_dip":
       return {
         status,
+        mappedStatus: "stagnating",
         confidence,
         title:          "Temporary dip",
         subtitle:       "Recent drop after prior gains — likely normal fatigue",
@@ -142,6 +147,7 @@ function buildOutput(
     case "regressing":
       return {
         status,
+        mappedStatus: "regressing",
         confidence,
         title:          low ? "Output dropping"        : "Performance declining",
         subtitle:       low ? "Below prior level"      : "Sustained drop across recent sessions",

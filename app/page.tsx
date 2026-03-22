@@ -10,7 +10,10 @@ import WorkoutDetailSheet from "./components/WorkoutDetailSheet";
 import WorkoutSummaryScreen from "./components/WorkoutSummaryScreen";
 import HistoryScreen from "./components/HistoryScreen";
 import ProgressScreen from "./components/ProgressScreen";
+import ProfileSetupScreen from "./components/ProfileSetupScreen";
+import ProfileEditSheet from "./components/ProfileEditSheet";
 import { useWorkout, getSessionDate } from "./hooks/useWorkout";
+import { useProfile } from "./hooks/useProfile";
 import { getEffectiveSets } from "./lib/workout";
 import { useProgression } from "./hooks/useProgression";
 import { useTemplates } from "./hooks/useTemplates";
@@ -67,11 +70,13 @@ export default function Home() {
   const [showTemplates, setShowTemplates]   = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null);
   const [isEditingName, setIsEditingName]   = useState(false);
-  const [pendingExit, setPendingExit]   = useState<"discard" | "save" | null>(null);
-  const [confirming, setConfirming]     = useState(false);
+  const [pendingExit, setPendingExit]     = useState<"discard" | "save" | null>(null);
+  const [confirming, setConfirming]       = useState(false);
+  const [showProfileSheet, setShowProfileSheet] = useState(false);
 
   const { user, loading: authLoading, signOut } = useAuth();
   const userId = user?.id ?? null;
+  const { profile, loading: profileLoading, saveProfile } = useProfile(userId);
 
   const {
     activeWorkout,
@@ -138,8 +143,17 @@ export default function Home() {
     }
   };
 
-  if (authLoading) {
+  // ── Strict gating ───────────────────────────────────────────────────────────
+  if (authLoading || (userId !== null && profileLoading)) {
     return <div className="min-h-screen bg-zinc-950" />;
+  }
+
+  if (user && !profile) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-zinc-100 px-4 pt-10 pb-10 max-w-xl mx-auto">
+        <ProfileSetupScreen onSave={saveProfile} />
+      </main>
+    );
   }
 
   return (
@@ -167,6 +181,15 @@ export default function Home() {
           onCreateCustom={createUserExercise}
         />
       )}
+      {showProfileSheet && profile && (
+        <ProfileEditSheet
+          profile={profile}
+          onSave={saveProfile}
+          onSignOut={signOut}
+          onClose={() => setShowProfileSheet(false)}
+        />
+      )}
+
       {selectedWorkout && (
         <WorkoutDetailSheet
           workout={selectedWorkout}
@@ -258,7 +281,7 @@ export default function Home() {
         ) : tab === "progress" ? (
 
           // ── Progress ───────────────────────────────────────────────────
-          <ProgressScreen progressions={progressions} onTapExercise={setSelectedExercise} />
+          <ProgressScreen progressions={progressions} onTapExercise={setSelectedExercise} profile={profile ?? undefined} />
 
         ) : (
 
@@ -274,10 +297,10 @@ export default function Home() {
                 </h1>
               </div>
               <button
-                onClick={signOut}
-                className="text-zinc-600 hover:text-zinc-400 text-xs font-semibold transition-colors py-1.5 px-3 rounded-xl hover:bg-zinc-800 mt-1"
+                onClick={() => setShowProfileSheet(true)}
+                className="w-9 h-9 rounded-full bg-zinc-800 ring-1 ring-zinc-700 flex items-center justify-center text-sm font-black text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors mt-1"
               >
-                Sign out
+                {user?.email?.[0]?.toUpperCase() ?? "?"}
               </button>
             </header>
 

@@ -129,6 +129,12 @@ export type ProgressionStatus =
  */
 export type ProgressionInterpretation = {
   status: ProgressionStatus;
+  /** 3-state UI signal derived from the 6-state internal status.
+   *  progressing | improving_slightly → "progressing"
+   *  stable | stalling | fatigue_dip  → "stagnating"
+   *  regressing                       → "regressing"
+   */
+  mappedStatus: "progressing" | "stagnating" | "regressing";
   confidence: "low" | "medium" | "high";
   /** Short headline for the card — e.g. "Strength trending up" */
   title: string;
@@ -153,6 +159,18 @@ export type ExerciseAnalysisResult = {
   lastTopSet: { weight: number; reps: number } | null;
   /** Smarter coaching interpretation — see ProgressionInterpretation */
   interpretation?: ProgressionInterpretation;
+};
+
+// ─── User Profile ─────────────────────────────────────────────────────────────
+
+export type UserProfile = {
+  sex: "male" | "female";
+  weight: number;
+  height: number;
+  experience: "beginner" | "intermediate" | "advanced";
+  goal: "hypertrophy" | "strength" | "recomp";
+  trainingDaysPerWeek: number;
+  sleepQuality: "low" | "medium" | "high";
 };
 
 // ─── Backward-compat alias ────────────────────────────────────────────────────
