@@ -94,7 +94,8 @@ function migrateSession(raw: Record<string, unknown>): WorkoutSession {
     startedAt:       Number(raw.startedAt ?? 0),
     endedAt:         raw.endedAt != null ? Number(raw.endedAt) : undefined,
     durationSeconds,
-    date:            raw.date != null ? String(raw.date) : undefined,
+    date:             raw.date != null ? String(raw.date) : undefined,
+    trainingDayIndex: raw.trainingDayIndex != null ? Number(raw.trainingDayIndex) : undefined,
     exercises,
   };
 }
@@ -294,6 +295,7 @@ export function useWorkout(userId: string | null) {
     name = "Workout",
     templateId?: string,
     templateExercises?: TemplateExercise[],
+    trainingDayIndex?: number,
   ) => {
     const exercises = (templateExercises ?? []).map((ex) => {
       const numSets    = ex.sets        ?? 1;
@@ -318,7 +320,7 @@ export function useWorkout(userId: string | null) {
         workingRestSeconds:  ex.restSeconds ?? 90,
       };
     });
-    setActiveWorkout({ id: uid(), name, status: "active", templateId, startedAt: Date.now(), exercises });
+    setActiveWorkout({ id: uid(), name, status: "active", templateId, trainingDayIndex, startedAt: Date.now(), exercises });
   };
 
   const renameWorkout = (name: string) => {

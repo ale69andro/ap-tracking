@@ -19,13 +19,17 @@ import { useProgression } from "./hooks/useProgression";
 import { useTemplates } from "./hooks/useTemplates";
 import { useAuth } from "./hooks/useAuth";
 import { useExerciseLibrary } from "./hooks/useExerciseLibrary";
+import { useTrainingPlan } from "./hooks/useTrainingPlan";
 import AddExerciseModal from "./components/AddExerciseModal";
 import ConfirmModal from "./components/ConfirmModal";
+import TrainingDayCard from "./components/TrainingDayCard";
+import TrainingPlanSheet from "./components/TrainingPlanSheet";
 import { PRESET_TEMPLATES } from "./constants/presetTemplates";
 import { DEMO_WORKOUTS } from "./constants/demoData";
 import { ANALYSIS_TEST_WORKOUTS } from "./constants/analysisTestData";
-import type { ExerciseProgression, WorkoutSession, WorkoutTemplate } from "./types";
+import type { ExerciseProgression, TrainingDay, WorkoutSession, WorkoutTemplate } from "./types";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
+import { useEffect } from "react";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -73,7 +77,8 @@ export default function Home() {
   const [isEditingName, setIsEditingName]   = useState(false);
   const [pendingExit, setPendingExit]     = useState<"discard" | "save" | null>(null);
   const [confirming, setConfirming]       = useState(false);
-  const [showProfileSheet, setShowProfileSheet] = useState(false);
+  const [showProfileSheet, setShowProfileSheet]   = useState(false);
+  const [showTrainingPlan, setShowTrainingPlan]   = useState(false);
 
   const { user, loading: authLoading, signOut } = useAuth();
   const userId = user?.id ?? null;
@@ -108,6 +113,17 @@ export default function Home() {
 
   const { templates, saveTemplate, deleteTemplate } = useTemplates(userId);
   const { userExercises, createUserExercise } = useExerciseLibrary(userId);
+
+  const {
+    plan: trainingPlan,
+    nextDay,
+    nextDayIndex,
+    lastCompletedDay,
+    lastCompletedAt,
+    setPlan: saveTrainingPlan,
+    markDayCompleted,
+    clearPlan: clearTrainingPlan,
+  } = useTrainingPlan(userId);
 
   const effectiveHistory =
     historySource === "demo"  ? [...DEMO_WORKOUTS, ...history] :
@@ -144,6 +160,20 @@ export default function Home() {
     startWorkout(template.name, template.id, template.exercises);
     setShowTemplates(false);
   };
+
+  const handleStartFromDay = (day: TrainingDay, dayIndex: number) => {
+    const allTemplates = [...PRESET_TEMPLATES, ...templates];
+    const template = day.templateId ? allTemplates.find((t) => t.id === day.templateId) : undefined;
+    const name = day.label ? `Day ${day.dayNumber} – ${day.label}` : `Day ${day.dayNumber}`;
+    startWorkout(name, template?.id, template?.exercises, dayIndex);
+  };
+
+  // When a workout that was started from a plan day is saved, advance the progress
+  useEffect(() => {
+    if (completedSession?.trainingDayIndex != null) {
+      markDayCompleted(completedSession.trainingDayIndex);
+    }
+  }, [completedSession, markDayCompleted]);
 
   const handleConfirmExit = async () => {
     setConfirming(true);
@@ -201,6 +231,16 @@ export default function Home() {
           onSave={saveProfile}
           onSignOut={signOut}
           onClose={() => setShowProfileSheet(false)}
+        />
+      )}
+
+      {showTrainingPlan && (
+        <TrainingPlanSheet
+          plan={trainingPlan}
+          templates={templates}
+          onSave={saveTrainingPlan}
+          onClear={clearTrainingPlan}
+          onClose={() => setShowTrainingPlan(false)}
         />
       )}
 
@@ -327,13 +367,23 @@ export default function Home() {
 
             <button
               onClick={() => setShowTemplates(true)}
-              className="w-full flex items-center justify-between bg-zinc-900 border border-zinc-800/60 rounded-2xl px-4 py-3 mb-10 hover:border-zinc-700 transition-colors"
+              className="w-full flex items-center justify-between bg-zinc-900 border border-zinc-800/60 rounded-2xl px-4 py-3 mb-4 hover:border-zinc-700 transition-colors"
             >
               <span className="text-sm font-semibold text-zinc-400">Templates</span>
               <span className="text-xs text-zinc-600">
                 {templates.length > 0 ? `${templates.length} saved →` : "Create one →"}
               </span>
             </button>
+
+            <TrainingDayCard
+              plan={trainingPlan}
+              nextDay={nextDay}
+              nextDayIndex={nextDayIndex}
+              lastCompletedDay={lastCompletedDay}
+              lastCompletedAt={lastCompletedAt}
+              onStart={handleStartFromDay}
+              onSetup={() => setShowTrainingPlan(true)}
+            />
 
             {/* Progression */}
             <section className="mb-10">

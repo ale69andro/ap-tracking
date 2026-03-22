@@ -25,6 +25,7 @@ export type SessionExercise = {
 export type WorkoutSession = {
   id: string;
   templateId?: string;
+  trainingDayIndex?: number; // 0-based index into TrainingPlan.days[] when started from a plan
   name: string;
   status: "active" | "completed";
   startedAt: number;       // Date.now() — 0 for migrated records without timestamp
@@ -171,6 +172,29 @@ export type UserProfile = {
   goal: "hypertrophy" | "strength" | "recomp";
   trainingDaysPerWeek: number;
   sleepQuality: "low" | "medium" | "high";
+};
+
+// ─── Training Plan ────────────────────────────────────────────────────────────
+
+export type TrainingDay = {
+  id: string;
+  dayNumber: number;   // 1, 2, 3...
+  label?: string;      // "Push", "Pull", "Legs" — shown next to day number
+  templateId?: string; // optional link to a WorkoutTemplate
+};
+
+/** Ordered sequence of training days. Structure only — no progress state. */
+export type TrainingPlan = {
+  id: string;
+  name: string;
+  days: TrainingDay[];
+};
+
+/** Mutable progress through a TrainingPlan. Stored separately from the plan. */
+export type TrainingProgress = {
+  planId: string;
+  lastCompletedDayIndex: number | null; // 0-based index into TrainingPlan.days[]
+  lastCompletedAt: number | null;       // timestamp of last completion
 };
 
 // ─── Backward-compat alias ────────────────────────────────────────────────────
