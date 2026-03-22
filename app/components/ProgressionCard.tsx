@@ -73,8 +73,13 @@ export default function ProgressionCard({ progression, onTap }: Props) {
 
       {/* Interpretation headline */}
       {progression.analysis?.interpretation && (
-        <p className={`text-[15px] font-black leading-snug mb-1 ${t.color}`}>
+        <p className={`text-[15px] font-black leading-snug mb-0.5 ${t.color}`}>
           {progression.analysis.interpretation.title}
+        </p>
+      )}
+      {progression.analysis?.interpretation?.subtitle && (
+        <p className="text-[11px] text-zinc-500 mb-1 leading-snug">
+          {progression.analysis.interpretation.subtitle}
         </p>
       )}
 

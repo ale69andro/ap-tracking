@@ -3,7 +3,7 @@
 import type { ExerciseProgression, ExerciseSession, UserProfile } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
-import { getSmartRecommendation } from "@/lib/analysis/smartCoach";
+import { getSmartRecommendation, computeMuscleGroupLoadMap } from "@/lib/analysis/smartCoach";
 import SparkLine from "./SparkLine";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -90,13 +90,12 @@ function DeltaMetrics({ delta }: { delta: Delta | null }) {
   );
 }
 
-function getChartInterpretation(p: ExerciseProgression): string | null {
-  if (p.recentSessions.length < 2) return null;
-  // Prefer the interpretation subtitle — more nuanced than the 3-state trend
-  return p.analysis?.interpretation?.subtitle ?? null;
-}
 
-function getActionText(p: ExerciseProgression, profile?: UserProfile): string {
+function getActionText(
+  p: ExerciseProgression,
+  profile?: UserProfile,
+  mgContext?: Record<string, "low" | "medium" | "high">,
+): string {
   const ms           = p.analysis?.interpretation?.mappedStatus;
   const status       = p.analysis?.interpretation?.status;
   const conf         = p.analysis?.confidence;
@@ -111,7 +110,9 @@ function getActionText(p: ExerciseProgression, profile?: UserProfile): string {
         interpretation: interp,
         profile,
         metrics: { suggestedNextWeight: w, suggestedRepRange: reps, confidence: conf },
-        recentSessions: p.recentSessions,
+        recentSessions:     p.recentSessions,
+        muscleGroups:       p.muscleGroups,
+        muscleGroupContext: mgContext,
       });
     }
     return interp?.recommendation ?? "Keep logging to unlock insights";
@@ -220,10 +221,13 @@ function getFocusScore(p: ExerciseProgression): number {
 
 // ─── Next Action Block ────────────────────────────────────────────────────────
 
-function NextAction({ text }: { text: string }) {
+function CoachBlock({ text, accentColor }: { text: string; accentColor: string }) {
   return (
-    <div className="flex items-center gap-2.5 mt-2 bg-zinc-800/60 border border-zinc-700/40 rounded-xl px-3.5 py-2.5">
-      <span className="text-zinc-500 text-xs shrink-0">▶</span>
+    <div
+      className="mt-3 bg-zinc-800/60 rounded-xl px-3.5 py-2.5"
+      style={{ borderLeft: `2px solid ${accentColor}60` }}
+    >
+      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">Coach</p>
       <p className="text-[13px] font-semibold text-white leading-snug">{text}</p>
     </div>
   );
@@ -243,10 +247,10 @@ function SectionHeader({ label, color, count }: { label: string; color: string; 
 
 // ─── Focus Today Card ─────────────────────────────────────────────────────────
 
-function FocusTodayCard({ p, onTap, profile }: { p: ExerciseProgression; onTap: () => void; profile?: UserProfile }) {
+function FocusTodayCard({ p, onTap, profile, mgContext }: { p: ExerciseProgression; onTap: () => void; profile?: UserProfile; mgContext?: Record<string, "low" | "medium" | "high"> }) {
   const delta  = getDelta(p.recentSessions);
   const t      = TREND[resolvedTrendKey(p)];
-  const action = getActionText(p, profile);
+  const action = getActionText(p, profile, mgContext);
 
   return (
     <button
@@ -265,12 +269,17 @@ function FocusTodayCard({ p, onTap, profile }: { p: ExerciseProgression; onTap: 
         </span>
       </div>
       <p
-        className={`text-[18px] font-black leading-snug mb-3 ${t.color}`}
+        className={`text-[18px] font-black leading-snug mb-1 ${t.color}`}
         style={{ textShadow: `0 0 28px ${t.spark}4D` }}
       >
         {getPrimaryInsight(p, delta)}
       </p>
-      <NextAction text={action} />
+      {p.analysis?.interpretation?.subtitle && (
+        <p className="text-[12px] text-zinc-500 font-medium mb-3 leading-snug">
+          {p.analysis.interpretation.subtitle}
+        </p>
+      )}
+      <CoachBlock text={action} accentColor={t.spark} />
     </button>
   );
 }
@@ -289,15 +298,16 @@ function ExerciseCard({
   p,
   onTap,
   profile,
+  mgContext,
 }: {
   p: ExerciseProgression;
   onTap: () => void;
   profile?: UserProfile;
+  mgContext?: Record<string, "low" | "medium" | "high">;
 }) {
   const delta         = getDelta(p.recentSessions);
   const t             = TREND[resolvedTrendKey(p)];
-  const insight       = getActionText(p, profile);
-  const chartCaption  = getChartInterpretation(p);
+  const insight       = getActionText(p, profile, mgContext);
   const sessionCount  = p.recentSessions.length;
   const isEarlyData   = sessionCount < 4;
 
@@ -324,11 +334,16 @@ function ExerciseCard({
 
       {/* Row 2: primary insight + delta chips */}
       <p
-        className={`text-[18px] font-black leading-snug mb-3 ${t.color}`}
+        className={`text-[18px] font-black leading-snug mb-1 ${t.color}`}
         style={{ textShadow: `0 0 28px ${t.spark}4D` }}
       >
         {getPrimaryInsight(p, delta)}
       </p>
+      {p.analysis?.interpretation?.subtitle && (
+        <p className="text-[12px] text-zinc-500 font-medium mb-2 leading-snug">
+          {p.analysis.interpretation.subtitle}
+        </p>
+      )}
       <div style={{ opacity: 0.88 }}>
         <DeltaMetrics delta={delta} />
       </div>
@@ -345,11 +360,6 @@ function ExerciseCard({
             color={t.spark}
             minRangePct={sessionCount >= 3 ? 0.06 : 0}
           />
-          {chartCaption && sessionCount >= 3 && (
-            <p className={`text-[10px] font-semibold mt-1 ${t.color}`} style={{ opacity: 0.7 }}>
-              {chartCaption}
-            </p>
-          )}
           {isEarlyData && (
             <p className="text-[9px] text-zinc-600 mt-1.5">
               Early trend — {4 - sessionCount} more session{4 - sessionCount !== 1 ? "s" : ""} improve{4 - sessionCount !== 1 ? "" : "s"} accuracy
@@ -358,8 +368,8 @@ function ExerciseCard({
         </div>
       )}
 
-      {/* Row 4: next action */}
-      <NextAction text={insight} />
+      {/* Row 4: coach action */}
+      <CoachBlock text={insight} accentColor={t.spark} />
 
       {/* Row 5: low-confidence notice */}
       {p.analysis?.confidence === "low" && (
@@ -403,8 +413,9 @@ function groupProgressions(progressions: ExerciseProgression[]) {
 }
 
 export default function ProgressScreen({ progressions, onTapExercise, profile }: Props) {
-  const overview = computeOverview(progressions);
-  const groups   = groupProgressions(progressions);
+  const overview  = computeOverview(progressions);
+  const groups    = groupProgressions(progressions);
+  const mgContext = computeMuscleGroupLoadMap(progressions);
   const focus    = progressions.length >= 2
     ? [...progressions].sort((a, b) => getFocusScore(b) - getFocusScore(a))[0]
     : null;
@@ -466,7 +477,7 @@ export default function ProgressScreen({ progressions, onTapExercise, profile }:
 
           {/* Focus Today */}
           {focus && (
-            <FocusTodayCard p={focus} onTap={() => onTapExercise(focus)} profile={profile} />
+            <FocusTodayCard p={focus} onTap={() => onTapExercise(focus)} profile={profile} mgContext={mgContext} />
           )}
 
           {/* Exercise cards grouped by trend */}
@@ -476,7 +487,7 @@ export default function ProgressScreen({ progressions, onTapExercise, profile }:
                 <SectionHeader label={group.label} color={group.color} count={group.items.length} />
                 <div className="space-y-4">
                   {group.items.map((p) => (
-                    <ExerciseCard key={p.name} p={p} onTap={() => onTapExercise(p)} profile={profile} />
+                    <ExerciseCard key={p.name} p={p} onTap={() => onTapExercise(p)} profile={profile} mgContext={mgContext} />
                   ))}
                 </div>
               </div>

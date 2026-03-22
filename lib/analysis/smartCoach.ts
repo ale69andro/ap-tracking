@@ -1,4 +1,4 @@
-import type { ProgressionInterpretation, UserProfile, ExerciseSession } from "@/app/types";
+import type { ProgressionInterpretation, UserProfile, ExerciseSession, ExerciseProgression } from "@/app/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,9 +18,55 @@ type SmartCoachInput = {
   profile: UserProfile;
   metrics?: SmartCoachMetrics;
   recentSessions?: ExerciseSession[];
+  muscleGroups?: string[];
+  muscleGroupContext?: Record<string, "low" | "medium" | "high">;
 };
 
-// ─── Volume context ───────────────────────────────────────────────────────────
+// ─── Muscle-group load map ────────────────────────────────────────────────────
+
+/**
+ * Computes a per-muscle-group load proxy from the full exercise progression list.
+ * Load is approximated by summing recent session counts across all exercises
+ * that target each muscle group. More sessions across more exercises = higher load.
+ *
+ * Thresholds (total recent sessions for the muscle group):
+ *   ≤ 3  → "low"
+ *   4–8  → "medium"
+ *   ≥ 9  → "high"
+ *
+ * Call once per render in ProgressScreen and pass the result into getSmartRecommendation.
+ */
+export function computeMuscleGroupLoadMap(
+  progressions: ExerciseProgression[],
+): Record<string, "low" | "medium" | "high"> {
+  const counts: Record<string, number> = {};
+  for (const p of progressions) {
+    for (const mg of p.muscleGroups) {
+      counts[mg] = (counts[mg] ?? 0) + p.recentSessions.length;
+    }
+  }
+  const map: Record<string, "low" | "medium" | "high"> = {};
+  for (const [mg, count] of Object.entries(counts)) {
+    map[mg] = count <= 3 ? "low" : count <= 8 ? "medium" : "high";
+  }
+  return map;
+}
+
+/**
+ * Derives a single combined load level from all of an exercise's muscle groups.
+ * Any single group being "high" elevates the combined result.
+ */
+function combinedMuscleLoad(
+  muscleGroups: string[],
+  map: Record<string, "low" | "medium" | "high">,
+): "low" | "medium" | "high" {
+  const levels = muscleGroups.map((mg) => map[mg] ?? "low");
+  if (levels.includes("high"))   return "high";
+  if (levels.includes("medium")) return "medium";
+  return "low";
+}
+
+// ─── Exercise-level volume context ───────────────────────────────────────────
 
 /**
  * Derives a lightweight volume context from recent session history.
@@ -46,12 +92,14 @@ function deriveVolumeContext(sessions: ExerciseSession[]): VolumeContext {
 
 /**
  * Returns a personalized recommendation based on the exercise's coaching
- * interpretation, the user's profile, and recent volume context.
+ * interpretation, the user's profile, recent exercise volume context,
+ * and muscle-group load context.
  *
  * Rules:
  * - interpretation.status is the primary signal
  * - profile (experience, goal, sleepQuality) personalizes the output
- * - recentSessions feeds a lightweight volume context (relative, not absolute)
+ * - recentSessions feeds a lightweight exercise-level volume context
+ * - muscleGroups + muscleGroupContext feed a combined muscle-group load signal
  * - mappedStatus is NOT modified — only the recommendation text changes
  * - Falls back to interpretation.recommendation for unhandled edge cases
  */
@@ -60,11 +108,19 @@ export function getSmartRecommendation({
   profile,
   metrics = {},
   recentSessions = [],
+  muscleGroups = [],
+  muscleGroupContext,
 }: SmartCoachInput): string {
   const { status } = interpretation;
   const { experience, goal, sleepQuality } = profile;
   const { suggestedNextWeight: w, suggestedRepRange: r, confidence } = metrics;
   const { recentVolumeLevel, sessionCount } = deriveVolumeContext(recentSessions);
+
+  // Combined muscle-group load — null when no context is available
+  const mgLoad: "low" | "medium" | "high" | null =
+    muscleGroups.length > 0 && muscleGroupContext
+      ? combinedMuscleLoad(muscleGroups, muscleGroupContext)
+      : null;
 
   switch (status) {
 
@@ -83,6 +139,10 @@ export function getSmartRecommendation({
       }
       // Intermediate / advanced: volume context refines the advice
       if (recentVolumeLevel === "low") {
+        // If the muscle group is already loaded by other exercises, more volume here won't help
+        if (mgLoad === "high") {
+          return "Muscle group load is already high — change the stimulus rather than adding more sets";
+        }
         return "Volume may be the limiter — try adding a set or pushing for an extra rep before changing load";
       }
       if (recentVolumeLevel === "high") {
@@ -109,8 +169,10 @@ export function getSmartRecommendation({
         return "Sleep is likely limiting output — hold load and focus on recovery before making any changes";
       }
       if (recentVolumeLevel === "high") {
-        // High recent volume may be accumulating fatigue — offer a concrete action
-        return "Volume may be a factor — hold load and drop a set if the dip continues next session";
+        // Muscle-group context strengthens the fatigue signal if load is also high
+        return mgLoad === "high"
+          ? "Load on this muscle group is high — hold and reduce a set if the dip continues next session"
+          : "Volume may be a factor — hold load and drop a set if the dip continues next session";
       }
       if (sleepQuality === "high") {
         // Recovery is fine — may be a one-off; monitor before reacting
@@ -128,9 +190,11 @@ export function getSmartRecommendation({
       if (sleepQuality === "low") {
         return "Recovery is compromised — deload now and fix sleep before resuming progression";
       }
-      // High volume + repeated exposure: fatigue accumulation is plausible, but state it honestly
+      // High exercise volume + repeated exposure: use muscle-group context to calibrate the message
       if (recentVolumeLevel === "high" && sessionCount >= 5) {
-        return "Recent sessions have been heavy — reduce load and volume for a session before rebuilding";
+        return mgLoad === "high"
+          ? "Overall stress on this muscle group looks high — reduce volume and recover before pushing load again"
+          : "Recent sessions have been heavy — reduce load and volume for a session before rebuilding";
       }
       if (w != null && r != null) {
         return confidence === "high"
@@ -143,7 +207,13 @@ export function getSmartRecommendation({
     // ── Clear forward momentum ────────────────────────────────────────────────
     case "progressing": {
       if (goal === "hypertrophy" && recentVolumeLevel === "low") {
-        // Gains happening but volume is light — an extra set could compound the progress
+        // If muscle-group load is already high, don't recommend adding more
+        if (mgLoad === "high") {
+          return w != null && r != null
+            ? `Keep this momentum going — target ${w} kg × ${r} reps without adding more volume yet`
+            : "Momentum is good — ride the gains without adding volume until muscle group load drops";
+        }
+        // Low exercise volume + low/medium muscle group load: safe to add a set
         return w != null && r != null
           ? `Keep going — target ${w} kg × ${r} reps, and consider adding a back-off set`
           : "Keep going — consider adding a back-off set to build on this momentum";
