@@ -149,10 +149,12 @@ export const DEMO_WORKOUTS: WorkoutSession[] = DATES.map((dateStr, i) => {
   const exercises = EXERCISES
     .filter((ex) => ex.sessions[i] !== null)
     .map((ex) => ({
-      id:           uid(),
-      exerciseName: ex.exerciseName,
-      muscleGroups: ex.muscleGroups,
-      sets:         mkSets(ex.sessions[i]![0], ex.sessions[i]![1]),
+      id:                  uid(),
+      exerciseName:        ex.exerciseName,
+      muscleGroups:        ex.muscleGroups,
+      sets:                mkSets(ex.sessions[i]![0], ex.sessions[i]![1]),
+      warmupRestSeconds:   45,
+      workingRestSeconds:  90,
     }));
   return {
     id:              uid(),
