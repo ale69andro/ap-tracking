@@ -1,5 +1,13 @@
 import type { ProgressionInterpretation, ProgressionStatus } from "@/app/types";
 
+// ── mappedStatus helper ───────────────────────────────────────────────────────
+
+function toMappedStatus(status: ProgressionStatus): ProgressionInterpretation["mappedStatus"] {
+  if (status === "progressing" || status === "improving_slightly") return "progressing";
+  if (status === "regressing") return "regressing";
+  return "stagnating"; // stable | stalling | fatigue_dip
+}
+
 // ── Thresholds (as fractions of e1RM) ────────────────────────────────────────
 // Tuned against the demo dataset (9 exercises, 3–12 sessions each).
 
@@ -26,10 +34,11 @@ export function interpretProgression(
 
   if (n < 2) {
     return {
-      status: "stable",
-      confidence: "low",
-      title: "First session recorded",
-      subtitle: "Log one more session to start tracking progress",
+      status:       "stable",
+      mappedStatus: toMappedStatus("stable"),
+      confidence:   "low",
+      title:          "First session recorded",
+      subtitle:       "Log one more session to start tracking progress",
       recommendation: "Keep logging — more data unlocks accurate analysis",
     };
   }
@@ -95,7 +104,7 @@ function buildOutput(
     case "progressing":
       return {
         status,
-        mappedStatus: "progressing",
+        mappedStatus: toMappedStatus(status),
         confidence,
         title:          low ? "Looking good so far"       : "Strength trending up",
         subtitle:       low ? "Early signs of progress"   : "Consistent gains over recent sessions",
@@ -105,7 +114,7 @@ function buildOutput(
     case "improving_slightly":
       return {
         status,
-        mappedStatus: "progressing",
+        mappedStatus: toMappedStatus(status),
         confidence,
         title:          "Slowly improving",
         subtitle:       "Small but real gains — building momentum",
@@ -115,7 +124,7 @@ function buildOutput(
     case "stable":
       return {
         status,
-        mappedStatus: "stagnating",
+        mappedStatus: toMappedStatus(status),
         confidence,
         title:          "Strength holding steady",
         subtitle:       "Performance consistent with recent sessions",
@@ -125,7 +134,7 @@ function buildOutput(
     case "stalling":
       return {
         status,
-        mappedStatus: "stagnating",
+        mappedStatus: toMappedStatus(status),
         confidence,
         title:          "No meaningful progress",
         subtitle:       "Performance unchanged across recent sessions",
@@ -137,7 +146,7 @@ function buildOutput(
     case "fatigue_dip":
       return {
         status,
-        mappedStatus: "stagnating",
+        mappedStatus: toMappedStatus(status),
         confidence,
         title:          "Temporary dip",
         subtitle:       "Recent drop after prior gains — likely normal fatigue",
@@ -147,7 +156,7 @@ function buildOutput(
     case "regressing":
       return {
         status,
-        mappedStatus: "regressing",
+        mappedStatus: toMappedStatus(status),
         confidence,
         title:          low ? "Output dropping"        : "Performance declining",
         subtitle:       low ? "Below prior level"      : "Sustained drop across recent sessions",
