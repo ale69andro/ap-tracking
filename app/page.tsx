@@ -20,6 +20,7 @@ import { useTemplates } from "./hooks/useTemplates";
 import { useAuth } from "./hooks/useAuth";
 import { useExerciseLibrary } from "./hooks/useExerciseLibrary";
 import { useTrainingPlan } from "./hooks/useTrainingPlan";
+import { useScrollLock } from "./hooks/useScrollLock";
 import AddExerciseModal from "./components/AddExerciseModal";
 import ConfirmModal from "./components/ConfirmModal";
 import TrainingDayCard from "./components/TrainingDayCard";
@@ -109,6 +110,19 @@ export default function Home() {
     adjustTimer,
     dismissSummary,
   } = useWorkout(userId);
+
+  // Lock body scroll whenever any sheet or modal overlay is visible.
+  // Must be after useWorkout so completedSession is initialised.
+  useScrollLock(
+    showModal        ||
+    showTemplates    ||
+    showTrainingPlan ||
+    showProfileSheet ||
+    !!selectedExercise ||
+    !!selectedWorkout  ||
+    !!pendingExit      ||
+    !!completedSession
+  );
 
   const workoutActive = activeWorkout !== null;
   const exercises     = activeWorkout?.exercises ?? [];

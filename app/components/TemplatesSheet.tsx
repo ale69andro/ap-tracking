@@ -441,35 +441,12 @@ export default function TemplatesSheet({
         {mode === "list" && (
           <div className="px-5 pt-4 pb-8 max-h-[75vh] overflow-y-auto space-y-6">
 
-            {/* Presets section */}
-            <section>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">
-                Preset Templates
-              </p>
-              <div className="space-y-3">
-                {presets.map((t) => (
-                  <TemplateCard
-                    key={t.id}
-                    template={t}
-                    isPreset
-                    onStart={() => onStart(t)}
-                    onCustomize={() => startBuildFromPreset(t)}
-                  />
-                ))}
-              </div>
-            </section>
-
-            {/* My Templates section */}
-            <section>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">
-                My Templates
-              </p>
-              {templates.length === 0 ? (
-                <div className="text-center py-6 border border-dashed border-zinc-800 rounded-2xl">
-                  <p className="text-zinc-600 text-sm mb-3">No custom templates yet.</p>
-                  <p className="text-zinc-700 text-xs">Customize a preset or create one from scratch.</p>
-                </div>
-              ) : (
+            {/* My Templates section — only rendered when templates exist */}
+            {templates.length > 0 && (
+              <section>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">
+                  My Templates
+                </p>
                 <div className="space-y-3">
                   {templates.map((t) => (
                     <TemplateCard
@@ -482,13 +459,44 @@ export default function TemplatesSheet({
                     />
                   ))}
                 </div>
+                <button
+                  onClick={startBuild}
+                  className="mt-3 w-full py-3 border border-dashed border-zinc-700 hover:border-zinc-600 text-zinc-600 hover:text-zinc-400 rounded-2xl text-sm font-semibold transition-colors"
+                >
+                  + New Template from scratch
+                </button>
+              </section>
+            )}
+
+            {/* Preset Templates section — always visible */}
+            <section>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">
+                Preset Templates
+              </p>
+              {templates.length === 0 && (
+                <p className="text-[11px] text-zinc-700 mb-3">
+                  No templates yet — start with one below
+                </p>
               )}
-              <button
-                onClick={startBuild}
-                className="mt-3 w-full py-3 border border-dashed border-zinc-700 hover:border-zinc-600 text-zinc-600 hover:text-zinc-400 rounded-2xl text-sm font-semibold transition-colors"
-              >
-                + New Template from scratch
-              </button>
+              <div className="space-y-3">
+                {presets.map((t) => (
+                  <TemplateCard
+                    key={t.id}
+                    template={t}
+                    isPreset
+                    onStart={() => onStart(t)}
+                    onCustomize={() => startBuildFromPreset(t)}
+                  />
+                ))}
+              </div>
+              {templates.length === 0 && (
+                <button
+                  onClick={startBuild}
+                  className="mt-3 w-full py-3 border border-dashed border-zinc-700 hover:border-zinc-600 text-zinc-600 hover:text-zinc-400 rounded-2xl text-sm font-semibold transition-colors"
+                >
+                  + New Template from scratch
+                </button>
+              )}
             </section>
 
           </div>
