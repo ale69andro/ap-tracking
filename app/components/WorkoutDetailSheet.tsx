@@ -2,7 +2,7 @@
 
 import type { WorkoutSession } from "@/app/types";
 import { getSessionDate } from "@/app/hooks/useWorkout";
-import { computeWorkoutHighlight } from "@/app/lib/workout";
+import { computeWorkoutHighlight, getEffectiveSets, getCompletedSets } from "@/app/lib/workout";
 
 type Props = {
   workout: WorkoutSession;
@@ -27,7 +27,7 @@ function formatTime(ts: number): string {
 export default function WorkoutDetailSheet({ workout, onClose }: Props) {
   const date       = getSessionDate(workout);
   const duration   = formatDuration(workout.durationSeconds);
-  const totalSets  = workout.exercises.reduce((n, e) => n + e.sets.length, 0);
+  const totalSets  = workout.exercises.reduce((n, e) => n + getEffectiveSets(e.sets).length, 0);
   const highlight  = computeWorkoutHighlight(workout);
 
   // Build time range string if timestamps are available
@@ -98,42 +98,72 @@ export default function WorkoutDetailSheet({ workout, onClose }: Props) {
           )}
 
           {/* Exercise breakdown */}
-          {workout.exercises.map((exercise) => (
-            <div key={exercise.id}>
-              <div className="flex items-baseline gap-2 mb-2">
-                <p className="text-sm font-bold text-zinc-100">{exercise.exerciseName}</p>
-                {exercise.muscleGroups.length > 0 && (
-                  <p className="text-[11px] text-zinc-600">{exercise.muscleGroups.join(" · ")}</p>
+          {workout.exercises.map((exercise) => {
+            const completed   = getCompletedSets(exercise.sets);
+            const warmups     = completed.filter((s) => s.type === "Warm-up");
+            const workingSets = completed.filter((s) => s.type !== "Warm-up");
+            return (
+              <div key={exercise.id}>
+                <div className="flex items-baseline gap-2 mb-2">
+                  <p className="text-sm font-bold text-zinc-100">{exercise.exerciseName}</p>
+                  {exercise.muscleGroups.length > 0 && (
+                    <p className="text-[11px] text-zinc-600">{exercise.muscleGroups.join(" · ")}</p>
+                  )}
+                </div>
+
+                {warmups.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1 px-1">Warm-up</p>
+                    <div className="space-y-1">
+                      {warmups.map((set) => (
+                        <div key={set.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-zinc-800/50">
+                          <span className="text-[11px] font-black text-amber-600 w-5 shrink-0 text-center">W</span>
+                          <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                            {set.weight || "—"}
+                            <span className="text-zinc-600 text-xs font-normal ml-0.5">kg</span>
+                          </span>
+                          <span className="text-zinc-700 text-xs">×</span>
+                          <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                            {set.reps || "—"}
+                            <span className="text-zinc-600 text-xs font-normal ml-0.5">reps</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {workingSets.length > 0 && (
+                  <div>
+                    {warmups.length > 0 && (
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1 px-1">Working Sets</p>
+                    )}
+                    <div className="space-y-1">
+                      {workingSets.map((set, i) => (
+                        <div key={set.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-zinc-800/50">
+                          <span className="text-[11px] font-bold text-zinc-600 w-5 shrink-0 text-center">{i + 1}</span>
+                          <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                            {set.weight || "—"}
+                            <span className="text-zinc-600 text-xs font-normal ml-0.5">kg</span>
+                          </span>
+                          <span className="text-zinc-700 text-xs">×</span>
+                          <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                            {set.reps || "—"}
+                            <span className="text-zinc-600 text-xs font-normal ml-0.5">reps</span>
+                          </span>
+                          {set.type !== "Normal" && (
+                            <span className="ml-auto text-[10px] font-bold text-zinc-600 uppercase tracking-wide">
+                              {set.type}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
-              <div className="space-y-1">
-                {exercise.sets.map((set, i) => (
-                  <div
-                    key={set.id}
-                    className="flex items-center gap-3 px-3 py-2 rounded-xl bg-zinc-800/50"
-                  >
-                    <span className="text-[11px] font-bold text-zinc-600 w-5 shrink-0 text-center">
-                      {i + 1}
-                    </span>
-                    <span className="text-sm font-semibold text-zinc-200 tabular-nums">
-                      {set.weight || "—"}
-                      <span className="text-zinc-600 text-xs font-normal ml-0.5">kg</span>
-                    </span>
-                    <span className="text-zinc-700 text-xs">×</span>
-                    <span className="text-sm font-semibold text-zinc-200 tabular-nums">
-                      {set.reps || "—"}
-                      <span className="text-zinc-600 text-xs font-normal ml-0.5">reps</span>
-                    </span>
-                    {set.type !== "Normal" && (
-                      <span className="ml-auto text-[10px] font-bold text-zinc-600 uppercase tracking-wide">
-                        {set.type}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
         </div>
       </div>

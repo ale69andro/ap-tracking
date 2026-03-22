@@ -11,11 +11,13 @@ import WorkoutSummaryScreen from "./components/WorkoutSummaryScreen";
 import HistoryScreen from "./components/HistoryScreen";
 import ProgressScreen from "./components/ProgressScreen";
 import { useWorkout, getSessionDate } from "./hooks/useWorkout";
+import { getEffectiveSets } from "./lib/workout";
 import { useProgression } from "./hooks/useProgression";
 import { useTemplates } from "./hooks/useTemplates";
 import { useAuth } from "./hooks/useAuth";
 import { useExerciseLibrary } from "./hooks/useExerciseLibrary";
 import AddExerciseModal from "./components/AddExerciseModal";
+import ConfirmModal from "./components/ConfirmModal";
 import { PRESET_TEMPLATES } from "./constants/presetTemplates";
 import { DEMO_WORKOUTS } from "./constants/demoData";
 import { ANALYSIS_TEST_WORKOUTS } from "./constants/analysisTestData";
@@ -65,6 +67,7 @@ export default function Home() {
   const [showTemplates, setShowTemplates]   = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null);
   const [isEditingName, setIsEditingName]   = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const { user, loading: authLoading, signOut } = useAuth();
   const userId = user?.id ?? null;
@@ -76,16 +79,19 @@ export default function Home() {
     activeTimer,
     addExercise,
     deleteExercise,
+    moveExercise,
     deleteSet,
     addSet,
     updateSet,
     completeSet,
     uncompleteSet,
+    updateExerciseRest,
     saveWorkout,
     resetWorkout,
     startWorkout,
     renameWorkout,
     clearTimer,
+    adjustTimer,
     dismissSummary,
   } = useWorkout(userId);
 
@@ -117,6 +123,11 @@ export default function Home() {
   const handleStartFromTemplate = (template: WorkoutTemplate) => {
     startWorkout(template.name, template.id, template.exercises);
     setShowTemplates(false);
+  };
+
+  const handleCancelWorkout = () => {
+    resetWorkout();
+    setShowCancelConfirm(false);
   };
 
   if (authLoading) {
@@ -152,6 +163,17 @@ export default function Home() {
         <WorkoutDetailSheet workout={selectedWorkout} onClose={() => setSelectedWorkout(null)} />
       )}
 
+      {showCancelConfirm && workoutActive && (
+        <ConfirmModal
+          title="End workout?"
+          description="Your progress will be lost."
+          confirmLabel="End workout"
+          cancelLabel="Stay"
+          onConfirm={handleCancelWorkout}
+          onCancel={() => setShowCancelConfirm(false)}
+        />
+      )}
+
       {completedSession && (
         <div className="fixed inset-0 z-50 bg-zinc-950 overflow-y-auto">
           <WorkoutSummaryScreen session={completedSession} onDone={dismissSummary} />
@@ -159,7 +181,7 @@ export default function Home() {
       )}
 
       {/* ── Bottom Navigation ───────────────────────────────────────────── */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/50">
+      {!workoutActive && <nav className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/50">
         <div className="max-w-xl mx-auto flex items-end justify-around px-6 pb-5 pt-2">
 
           <button
@@ -197,7 +219,7 @@ export default function Home() {
           </button>
 
         </div>
-      </nav>
+      </nav>}
 
       {/* ── Main Content ────────────────────────────────────────────────── */}
       <main className="min-h-screen bg-zinc-950 text-zinc-100 px-4 pt-10 pb-32 max-w-xl mx-auto">
@@ -298,7 +320,7 @@ export default function Home() {
                 <div className="space-y-2">
                   {history.map((w) => {
                     const mins = Math.round((w.durationSeconds ?? 0) / 60);
-                    const totalSets = w.exercises.reduce((n, e) => n + e.sets.length, 0);
+                    const totalSets = w.exercises.reduce((n, e) => n + getEffectiveSets(e.sets).length, 0);
                     return (
                       <button
                         key={w.id}
@@ -360,7 +382,7 @@ export default function Home() {
                   />
                 </div>
                 <button
-                  onClick={() => resetWorkout()}
+                  onClick={() => setShowCancelConfirm(true)}
                   className="text-zinc-600 hover:text-zinc-400 text-xs font-semibold transition-colors py-1.5 px-3 rounded-xl hover:bg-zinc-800 shrink-0 mt-0.5"
                 >
                   Cancel
@@ -370,7 +392,7 @@ export default function Home() {
 
             {/* Exercise cards */}
             <div className="space-y-3">
-              {exercises.map((exercise) => {
+              {exercises.map((exercise, idx) => {
                 const prog = progressions.find((p) => p.name === exercise.exerciseName);
                 const lastSessions = prog?.recentSessions ?? [];
                 const lastSess = lastSessions.length > 0 ? lastSessions[lastSessions.length - 1] : undefined;
@@ -384,9 +406,13 @@ export default function Home() {
                     onDeleteSet={(setId) => deleteSet(exercise.id, setId)}
                     onAddSet={() => addSet(exercise.id)}
                     onUpdateSet={(setId, field, value) => updateSet(exercise.id, setId, field, value)}
-                    onCompleteSet={(setId, restSeconds) => completeSet(exercise.id, setId, restSeconds)}
+                    onCompleteSet={(setId) => completeSet(exercise.id, setId)}
                     onUncompleteSet={(setId) => uncompleteSet(exercise.id, setId)}
                     onClearTimer={clearTimer}
+                    onAdjustTimer={adjustTimer}
+                    onUpdateExerciseRest={(field, value) => updateExerciseRest(exercise.id, field, value)}
+                    onMoveUp={idx > 0 ? () => moveExercise(exercise.id, "up") : undefined}
+                    onMoveDown={idx < exercises.length - 1 ? () => moveExercise(exercise.id, "down") : undefined}
                   />
                 );
               })}

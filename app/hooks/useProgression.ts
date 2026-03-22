@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { WorkoutSession, ExerciseProgression, ExerciseSession } from "@/app/types";
 import { computeSessionScore, computeTrend } from "@/app/lib/progression";
+import { getEffectiveSets } from "@/app/lib/workout";
 import { getSessionDate } from "@/app/hooks/useWorkout";
 import { analyzeExerciseHistory } from "@/lib/analysis/analyzeExerciseHistory";
 import { getTopSet } from "@/lib/analysis/exerciseMetrics";
@@ -15,8 +16,8 @@ export function useProgression(history: WorkoutSession[]): ExerciseProgression[]
     // history is newest-first; iterate oldest-first for chronological session ordering
     [...history].reverse().forEach((workout) => {
       workout.exercises.forEach((exercise) => {
-        const validSets = exercise.sets.filter(
-          (s) => s.completed && s.type !== "Warm-up" && s.weight !== "" && s.reps !== ""
+        const validSets = getEffectiveSets(exercise.sets).filter(
+          (s) => s.weight !== "" && s.reps !== ""
         );
         if (validSets.length === 0) return;
 

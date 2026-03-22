@@ -3,9 +3,10 @@ type Props = {
   total: number;
   done: boolean;
   onSkip: () => void;
+  onAdjust: (delta: number) => void;
 };
 
-export default function RestTimer({ remaining, total, done, onSkip }: Props) {
+export default function RestTimer({ remaining, total, done, onSkip, onAdjust }: Props) {
   return (
     <div className={`mx-2 mb-2 rounded-xl px-4 py-3 ${
       done
@@ -38,12 +39,26 @@ export default function RestTimer({ remaining, total, done, onSkip }: Props) {
                 style={{ width: `${(remaining / total) * 100}%` }}
               />
             </div>
-            <button
-              onClick={onSkip}
-              className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors uppercase tracking-wider font-semibold"
-            >
-              Skip
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onAdjust(-10)}
+                className="w-10 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-xs font-bold transition-colors tabular-nums"
+              >
+                -10
+              </button>
+              <button
+                onClick={() => onAdjust(+10)}
+                className="w-10 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-xs font-bold transition-colors tabular-nums"
+              >
+                +10
+              </button>
+              <button
+                onClick={onSkip}
+                className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors uppercase tracking-wider font-semibold ml-1"
+              >
+                Skip
+              </button>
+            </div>
           </div>
         </div>
       )}

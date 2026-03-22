@@ -1,12 +1,27 @@
-import type { WorkoutSession, WorkoutHighlight } from "@/app/types";
+import type { ExerciseSet, WorkoutSession, WorkoutHighlight } from "@/app/types";
 import { calculate1RM } from "@/lib/analysis/calculate1RM";
 
-/** Sum of weight × reps across all sets in a session. */
+/** Returns only working sets — excludes Warm-up type. Use for non-metric purposes (e.g. weight pre-fill). */
+export function getWorkingSets(sets: ExerciseSet[]): ExerciseSet[] {
+  return sets.filter((s) => s.type !== "Warm-up");
+}
+
+/** Returns sets that count toward metrics: completed and not a warm-up. Single source of truth for all calculations. */
+export function getEffectiveSets(sets: ExerciseSet[]): ExerciseSet[] {
+  return sets.filter((s) => s.completed === true && s.type !== "Warm-up");
+}
+
+/** Returns all completed sets regardless of type. Use for display in history views (warm-ups included). */
+export function getCompletedSets(sets: ExerciseSet[]): ExerciseSet[] {
+  return sets.filter((s) => s.completed === true);
+}
+
+/** Sum of weight × reps across effective sets only (completed, non-warm-up). */
 export function computeVolume(session: WorkoutSession): number {
   return session.exercises.reduce(
     (total, e) =>
       total +
-      e.sets.reduce((s, set) => {
+      getEffectiveSets(e.sets).reduce((s, set) => {
         const w = parseFloat(set.weight) || 0;
         const r = parseFloat(set.reps) || 0;
         return s + w * r;
@@ -43,7 +58,7 @@ export function computeWorkoutHighlight(session: WorkoutSession): WorkoutHighlig
   let bestScore = 0;
 
   for (const exercise of session.exercises) {
-    for (const set of exercise.sets) {
+    for (const set of getEffectiveSets(exercise.sets)) {
       const w = parseFloat(set.weight) || 0;
       const r = parseFloat(set.reps)   || 0;
       if (w <= 0 || r <= 0) continue;

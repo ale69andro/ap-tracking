@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { SessionExercise, ExerciseSet, ActiveTimer } from "@/app/types";
 import SetRow from "./SetRow";
 
@@ -10,9 +11,13 @@ type Props = {
   onDeleteSet: (setId: string) => void;
   onAddSet: () => void;
   onUpdateSet: (setId: string, field: keyof Omit<ExerciseSet, "id" | "completed" | "completedAt">, value: string) => void;
-  onCompleteSet: (setId: string, restSeconds: number) => void;
+  onCompleteSet: (setId: string) => void;
+  onUpdateExerciseRest: (field: "warmupRestSeconds" | "workingRestSeconds", value: number) => void;
   onUncompleteSet: (setId: string) => void;
   onClearTimer: () => void;
+  onAdjustTimer: (delta: number) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 };
 
 export default function ExerciseCard({
@@ -26,7 +31,13 @@ export default function ExerciseCard({
   onCompleteSet,
   onUncompleteSet,
   onClearTimer,
+  onAdjustTimer,
+  onUpdateExerciseRest,
+  onMoveUp,
+  onMoveDown,
 }: Props) {
+  const [showRest, setShowRest] = useState(false);
+
   return (
     <div className="bg-zinc-900 border border-zinc-800/80 rounded-2xl overflow-hidden">
 
@@ -45,12 +56,31 @@ export default function ExerciseCard({
             </p>
           )}
         </div>
-        <button
-          onClick={onDelete}
-          className="ml-3 shrink-0 text-zinc-700 hover:text-red-500 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors text-xs"
-        >
-          ✕
-        </button>
+        <div className="ml-3 shrink-0 flex items-center gap-1">
+          <button
+            onClick={onMoveUp}
+            disabled={!onMoveUp}
+            className="text-zinc-700 hover:text-zinc-400 disabled:opacity-0 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors text-xs"
+            title="Move up"
+          >
+            ↑
+          </button>
+          <button
+            onClick={onMoveDown}
+            disabled={!onMoveDown}
+            className="text-zinc-700 hover:text-zinc-400 disabled:opacity-0 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors text-xs"
+            title="Move down"
+          >
+            ↓
+          </button>
+          <button
+            onClick={onDelete}
+            className="text-zinc-700 hover:text-red-500 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors text-xs"
+            title="Delete exercise"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       {/* Sets */}
@@ -67,32 +97,74 @@ export default function ExerciseCard({
         <div className="space-y-2">
           {(() => {
             const activeIdx = exercise.sets.findIndex((s) => !s.completed);
-            return exercise.sets.map((set, idx) => (
-              <SetRow
-                key={set.id}
-                set={set}
-                index={idx}
-                isActive={idx === activeIdx}
-                activeTimer={activeTimer}
-                onUpdate={(field, value) => onUpdateSet(set.id, field, value)}
-                onComplete={() => onCompleteSet(set.id, set.restSeconds)}
-                onUncomplete={() => onUncompleteSet(set.id)}
-                onDelete={() => onDeleteSet(set.id)}
-                onClearTimer={onClearTimer}
-              />
-            ));
+            let workingIdx = 0;
+            return exercise.sets.map((set, idx) => {
+              const displayIndex = set.type !== "Warm-up" ? workingIdx++ : -1;
+              return (
+                <SetRow
+                  key={set.id}
+                  set={set}
+                  index={displayIndex}
+                  isActive={idx === activeIdx}
+                  activeTimer={activeTimer}
+                  onUpdate={(field, value) => onUpdateSet(set.id, field, value)}
+                  onComplete={() => onCompleteSet(set.id)}
+                  onUncomplete={() => onUncompleteSet(set.id)}
+                  onDelete={() => onDeleteSet(set.id)}
+                  onClearTimer={onClearTimer}
+                  onAdjustTimer={onAdjustTimer}
+                />
+              );
+            });
           })()}
         </div>
       </div>
 
       {/* Add Set */}
-      <div className="px-3 pb-3">
+      <div className="px-3 pb-1">
         <button
           onClick={onAddSet}
           className="mt-1 w-full py-2 rounded-xl border border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 text-xs font-semibold transition-colors"
         >
           + Add Set
         </button>
+      </div>
+
+      {/* Rest presets — collapsed by default */}
+      <div className="px-3 pb-3">
+        <button
+          onClick={() => setShowRest((v) => !v)}
+          className="w-full py-1 text-[10px] text-zinc-700 hover:text-zinc-500 uppercase tracking-widest font-semibold transition-colors"
+        >
+          Rest {showRest ? "↑" : "↓"}
+        </button>
+        {showRest && (
+          <div className="space-y-1.5 pt-1">
+            {(
+              [
+                { label: "Warm-up", field: "warmupRestSeconds", presets: [30, 45, 60, 90], current: exercise.warmupRestSeconds },
+                { label: "Working", field: "workingRestSeconds", presets: [60, 90, 120, 180], current: exercise.workingRestSeconds },
+              ] as const
+            ).map(({ label, field, presets, current }) => (
+              <div key={field} className="flex items-center gap-1">
+                <span className="text-[10px] text-zinc-600 w-14 shrink-0">{label}</span>
+                {presets.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => onUpdateExerciseRest(field, s)}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${
+                      current === s
+                        ? "bg-red-600 text-white"
+                        : "bg-zinc-800 text-zinc-500 hover:text-zinc-300"
+                    }`}
+                  >
+                    {s}s
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

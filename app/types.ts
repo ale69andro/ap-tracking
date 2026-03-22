@@ -18,6 +18,8 @@ export type SessionExercise = {
   muscleGroups: string[];
   notes?: string;
   sets: ExerciseSet[];
+  warmupRestSeconds: number;
+  workingRestSeconds: number;
 };
 
 export type WorkoutSession = {
@@ -75,8 +77,12 @@ export type LibraryExercise = {
 
 export type ActiveTimer = {
   setId: string;
-  remaining: number;
+  /** Original duration in seconds — used for progress bar display only. */
   total: number;
+  /** Timestamp (Date.now()) when the timer was started. */
+  startedAt: number;
+  /** Total duration in milliseconds. */
+  durationMs: number;
 };
 
 export type ExerciseSession = {

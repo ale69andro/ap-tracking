@@ -28,6 +28,8 @@ export const makeExercise = (exerciseName: string, muscleGroups: string[]): Sess
   exerciseName,
   muscleGroups,
   sets: [defaultSet()],
+  warmupRestSeconds: 45,
+  workingRestSeconds: 90,
 });
 
 /** Format a session's display date. Uses startedAt when available, falls back to legacy date string. */
@@ -59,16 +61,18 @@ function migrateSession(raw: Record<string, unknown>): WorkoutSession {
       reps:        String(s.reps ?? ""),
       type:        (s.type ?? "Normal") as ExerciseSet["type"],
       restSeconds: Number(s.restSeconds ?? s.restTime ?? 60),
-      completed:   Boolean(s.completed),
+      completed:   s.completed !== false,
       completedAt: s.completedAt != null ? Number(s.completedAt) : undefined,
     }));
 
     return {
-      id:           String(ex.id ?? uid()),
-      exerciseName: String(ex.exerciseName ?? ex.name ?? ""),
-      muscleGroups: (ex.muscleGroups as string[]) ?? [],
-      notes:        ex.notes != null ? String(ex.notes) : undefined,
+      id:                  String(ex.id ?? uid()),
+      exerciseName:        String(ex.exerciseName ?? ex.name ?? ""),
+      muscleGroups:        (ex.muscleGroups as string[]) ?? [],
+      notes:               ex.notes != null ? String(ex.notes) : undefined,
       sets,
+      warmupRestSeconds:   Number(ex.warmupRestSeconds ?? 45),
+      workingRestSeconds:  Number(ex.workingRestSeconds ?? 90),
     };
   });
 
@@ -131,6 +135,13 @@ function sessionToRow(session: WorkoutSession, userId: string) {
   };
 }
 
+// ─── Timer helper ────────────────────────────────────────────────────────────
+
+/** Computes remaining seconds from timer timestamps. Always call at render time. */
+export function getTimerRemaining(timer: ActiveTimer): number {
+  return Math.max(0, Math.round((timer.durationMs - (Date.now() - timer.startedAt)) / 1000));
+}
+
 // ─── localStorage key for active session ────────────────────────────────────
 
 const ACTIVE_KEY = "ap_active_workout";
@@ -155,6 +166,7 @@ export function useWorkout(userId: string | null) {
 
   const [completedSession, setCompletedSession] = useState<WorkoutSession | null>(null);
   const [activeTimer, setActiveTimer]           = useState<ActiveTimer | null>(null);
+  const [, setTick]                             = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Validate stored active workout against current user ──────────────────
@@ -205,36 +217,47 @@ export function useWorkout(userId: string | null) {
   }, [activeWorkout, userId]);
 
   // ── Rest Timer ──────────────────────────────────────────────────────────
+  //
+  // activeTimer stores only the start timestamp + duration.
+  // Remaining time is derived at render via getTimerRemaining().
+  // The interval is a lightweight UI tick — it does NOT own the time source.
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
+    if (!activeTimer) return;
 
-    if (!activeTimer || activeTimer.remaining <= 0) {
-      intervalRef.current = null;
-      return;
-    }
+    const { startedAt, durationMs } = activeTimer;
 
     intervalRef.current = setInterval(() => {
-      setActiveTimer((prev) => {
-        if (!prev || prev.remaining <= 1) {
-          clearInterval(intervalRef.current!);
-          return prev ? { ...prev, remaining: 0 } : null;
-        }
-        return { ...prev, remaining: prev.remaining - 1 };
-      });
-    }, 1000);
+      const remaining = durationMs - (Date.now() - startedAt);
+      setTick((t) => t + 1); // trigger re-render
+      if (remaining <= 0) {
+        clearInterval(intervalRef.current!);
+        intervalRef.current = null;
+      }
+    }, 500);
 
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [activeTimer?.setId, activeTimer?.remaining === 0]);
+  }, [activeTimer]);
 
   const startTimer = (setId: string, seconds: number) => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    setActiveTimer({ setId, remaining: Math.max(1, seconds), total: Math.max(1, seconds) });
+    const durationMs = Math.max(1, seconds) * 1000;
+    setActiveTimer({ setId, total: Math.max(1, seconds), startedAt: Date.now(), durationMs });
   };
 
   const clearTimer = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     setActiveTimer(null);
+  };
+
+  const adjustTimer = (deltaSeconds: number) => {
+    setActiveTimer((prev) => {
+      if (!prev) return prev;
+      const elapsed = Date.now() - prev.startedAt;
+      const newDurationMs = Math.max(elapsed, prev.durationMs + deltaSeconds * 1000);
+      return { ...prev, durationMs: newDurationMs };
+    });
   };
 
   // ── Session ────────────────────────────────────────────────────────────
@@ -281,11 +304,13 @@ export function useWorkout(userId: string | null) {
         completed:   false,
       }));
       return {
-        id:           uid(),
-        exerciseName: ex.name,
-        muscleGroups: ex.muscleGroups,
-        notes:        ex.notes,
+        id:                  uid(),
+        exerciseName:        ex.name,
+        muscleGroups:        ex.muscleGroups,
+        notes:               ex.notes,
         sets,
+        warmupRestSeconds:   45,
+        workingRestSeconds:  ex.restSeconds ?? 90,
       };
     });
     setActiveWorkout({ id: uid(), name, status: "active", templateId, startedAt: Date.now(), exercises });
@@ -306,6 +331,17 @@ export function useWorkout(userId: string | null) {
     setActiveWorkout((prev) =>
       prev ? { ...prev, exercises: prev.exercises.filter((e) => e.id !== exId) } : prev
     );
+
+  const moveExercise = (exId: string, direction: "up" | "down") =>
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      const idx = prev.exercises.findIndex((e) => e.id === exId);
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= prev.exercises.length) return prev;
+      const exercises = [...prev.exercises];
+      [exercises[idx], exercises[swapIdx]] = [exercises[swapIdx], exercises[idx]];
+      return { ...prev, exercises };
+    });
 
   // ── Sets ─────────────────────────────────────────────────────────────────
 
@@ -347,8 +383,14 @@ export function useWorkout(userId: string | null) {
         : prev
     );
 
-  const completeSet = (exId: string, setId: string, restSeconds: number) => {
+  const completeSet = (exId: string, setId: string) => {
     const completedAt = Date.now();
+    // Derive rest duration from exercise-level presets (closed over current snapshot).
+    const exercise = activeWorkout?.exercises.find((e) => e.id === exId);
+    const set      = exercise?.sets.find((s) => s.id === setId);
+    const restSeconds = exercise && set
+      ? (set.type === "Warm-up" ? exercise.warmupRestSeconds : exercise.workingRestSeconds)
+      : 90;
     setActiveWorkout((prev) =>
       prev
         ? { ...prev, exercises: prev.exercises.map((e) =>
@@ -377,6 +419,19 @@ export function useWorkout(userId: string | null) {
     );
     if (activeTimer?.setId === setId) clearTimer();
   };
+
+  const updateExerciseRest = (
+    exId: string,
+    field: "warmupRestSeconds" | "workingRestSeconds",
+    value: number,
+  ) =>
+    setActiveWorkout((prev) =>
+      prev
+        ? { ...prev, exercises: prev.exercises.map((e) =>
+            e.id === exId ? { ...e, [field]: value } : e
+          )}
+        : prev
+    );
 
   // ── Save / Reset ─────────────────────────────────────────────────────────
 
@@ -422,16 +477,19 @@ export function useWorkout(userId: string | null) {
     activeTimer,
     addExercise,
     deleteExercise,
+    moveExercise,
     addSet,
     deleteSet,
     updateSet,
     completeSet,
     uncompleteSet,
+    updateExerciseRest,
     saveWorkout,
     resetWorkout,
     startWorkout,
     renameWorkout,
     clearTimer,
+    adjustTimer,
     dismissSummary,
   };
 }

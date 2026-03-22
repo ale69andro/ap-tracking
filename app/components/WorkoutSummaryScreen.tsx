@@ -2,7 +2,7 @@
 
 import type { WorkoutSession } from "@/app/types";
 import { getSessionDate } from "@/app/hooks/useWorkout";
-import { computeWorkoutHighlight } from "@/app/lib/workout";
+import { computeWorkoutHighlight, getEffectiveSets } from "@/app/lib/workout";
 
 type Props = {
   session: WorkoutSession;
@@ -25,11 +25,11 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 export default function WorkoutSummaryScreen({ session, onDone }: Props) {
-  const totalSets = session.exercises.reduce((n, e) => n + e.sets.length, 0);
+  const totalSets = session.exercises.reduce((n, e) => n + getEffectiveSets(e.sets).length, 0);
   const totalVolume = session.exercises.reduce(
     (sum, e) =>
       sum +
-      e.sets.reduce((s, set) => {
+      getEffectiveSets(e.sets).reduce((s, set) => {
         const w = parseFloat(set.weight) || 0;
         const r = parseFloat(set.reps)   || 0;
         return s + w * r;
