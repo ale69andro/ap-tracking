@@ -25,6 +25,7 @@ import { PRESET_TEMPLATES } from "./constants/presetTemplates";
 import { DEMO_WORKOUTS } from "./constants/demoData";
 import { ANALYSIS_TEST_WORKOUTS } from "./constants/analysisTestData";
 import type { ExerciseProgression, WorkoutSession, WorkoutTemplate } from "./types";
+import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -115,7 +116,19 @@ export default function Home() {
   const progressions     = useProgression(effectiveHistory);
 
   const handleAddExercise = (name: string, muscleGroups: string[]) => {
-    addExercise(name, muscleGroups);
+    const prog = progressions.find((p) => p.name === name);
+    const targets = prog ? getExerciseTargets(prog) : null;
+
+    const initialWeight =
+      targets?.target?.weight != null ? String(targets.target.weight) :
+      targets?.last?.weight != null   ? String(targets.last.weight)   : "";
+
+    const initialReps =
+      targets?.target?.repRange
+        ? (() => { const m = parseMiddleRep(targets.target.repRange!); return m != null ? String(m) : ""; })()
+        : targets?.last?.reps != null ? String(targets.last.reps) : "";
+
+    addExercise(name, muscleGroups, initialWeight, initialReps);
     setShowModal(false);
   };
 
@@ -446,6 +459,7 @@ export default function Home() {
                     exercise={exercise}
                     activeTimer={activeTimer}
                     lastSession={lastSess ? { topWeight: lastSess.topWeight, topReps: lastSess.topReps } : undefined}
+                    progression={prog}
                     onDelete={() => deleteExercise(exercise.id)}
                     onDeleteSet={(setId) => deleteSet(exercise.id, setId)}
                     onAddSet={() => addSet(exercise.id)}

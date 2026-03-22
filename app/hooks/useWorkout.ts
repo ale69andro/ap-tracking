@@ -23,11 +23,16 @@ const defaultSet = (prev?: ExerciseSet): ExerciseSet => ({
   completed:   false,
 });
 
-export const makeExercise = (exerciseName: string, muscleGroups: string[]): SessionExercise => ({
+export const makeExercise = (
+  exerciseName: string,
+  muscleGroups: string[],
+  initialWeight = "",
+  initialReps = "",
+): SessionExercise => ({
   id: uid(),
   exerciseName,
   muscleGroups,
-  sets: [defaultSet()],
+  sets: [{ id: uid(), weight: initialWeight, reps: initialReps, type: "Normal", restSeconds: 60, completed: false }],
   warmupRestSeconds: 45,
   workingRestSeconds: 90,
 });
@@ -322,9 +327,9 @@ export function useWorkout(userId: string | null) {
 
   // ── Exercises ────────────────────────────────────────────────────────────
 
-  const addExercise = (exerciseName: string, muscleGroups: string[]) =>
+  const addExercise = (exerciseName: string, muscleGroups: string[], initialWeight = "", initialReps = "") =>
     setActiveWorkout((prev) =>
-      prev ? { ...prev, exercises: [...prev.exercises, makeExercise(exerciseName, muscleGroups)] } : prev
+      prev ? { ...prev, exercises: [...prev.exercises, makeExercise(exerciseName, muscleGroups, initialWeight, initialReps)] } : prev
     );
 
   const deleteExercise = (exId: string) =>

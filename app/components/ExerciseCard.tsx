@@ -1,12 +1,14 @@
 import { useState } from "react";
-import type { SessionExercise, ExerciseSet, ActiveTimer } from "@/app/types";
+import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression } from "@/app/types";
 import SetRow from "./SetRow";
+import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
 
 type Props = {
   exercise: SessionExercise;
   activeTimer: ActiveTimer | null;
   /** Last recorded topWeight + topReps for this exercise, from history. */
   lastSession?: { topWeight: number; topReps: number };
+  progression?: ExerciseProgression;
   onDelete: () => void;
   onDeleteSet: (setId: string) => void;
   onAddSet: () => void;
@@ -24,6 +26,7 @@ export default function ExerciseCard({
   exercise,
   activeTimer,
   lastSession,
+  progression,
   onDelete,
   onDeleteSet,
   onAddSet,
@@ -82,6 +85,43 @@ export default function ExerciseCard({
           </button>
         </div>
       </div>
+
+      {/* Coach block */}
+      {progression && (() => {
+        const targets = getExerciseTargets(progression);
+        const hasData = targets.last || targets.best || targets.target;
+        if (!hasData) {
+          return (
+            <div className="px-4 py-2 border-b border-zinc-800/40">
+              <p className="text-[11px] text-zinc-600 italic">First session — start moderate and build up</p>
+            </div>
+          );
+        }
+        return (
+          <div className="px-4 py-2 border-b border-zinc-800/40 space-y-0.5">
+            {targets.last && (
+              <p className="text-[11px] text-zinc-500 tabular-nums">
+                Last · {targets.last.weight} kg × {targets.last.reps}
+              </p>
+            )}
+            {targets.best && (targets.best.weight !== targets.last?.weight || targets.best.reps !== targets.last?.reps) && (
+              <p className="text-[11px] text-zinc-500 tabular-nums">
+                Best · {targets.best.weight} kg × {targets.best.reps}
+              </p>
+            )}
+            {targets.target && (targets.target.weight != null || targets.target.repRange != null) && (
+              <div className="pt-1">
+                <p className="text-[9px] text-zinc-600 uppercase tracking-widest font-semibold">Coach</p>
+                <p className="text-[13px] font-bold text-white tabular-nums leading-tight">
+                  {targets.target.weight != null ? `${targets.target.weight} kg` : ""}
+                  {targets.target.weight != null && targets.target.repRange ? " × " : ""}
+                  {targets.target.repRange ?? ""}
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Sets */}
       <div className="px-3 pt-3 pb-1">
