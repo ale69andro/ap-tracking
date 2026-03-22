@@ -12,19 +12,36 @@ interface Props {
   onSave: (plan: TrainingPlan) => void;
   onClear: () => void;
   onClose: () => void;
+  onCreateTemplate: () => void;
 }
 
-export default function TrainingPlanSheet({ plan, templates, onSave, onClear, onClose }: Props) {
+export default function TrainingPlanSheet({
+  plan,
+  templates,
+  onSave,
+  onClear,
+  onClose,
+  onCreateTemplate,
+}: Props) {
   // Lazy init — this sheet is always mounted fresh, no external sync needed
   const [name, setName] = useState(() => plan?.name ?? "My Plan");
   const [days, setDays] = useState<TrainingDay[]>(() => plan?.days ?? []);
+
+  // Tracks which day IDs have had their label manually edited by the user.
+  // Once a day is in this set, auto-fill will never overwrite its label —
+  // even if the user cleared it to empty.
+  const [labelEditedByUser, setLabelEditedByUser] = useState<Set<string>>(
+    // Pre-populate for existing days that already have a label on load,
+    // so reopening the sheet doesn't auto-overwrite already-set labels.
+    () => new Set(plan?.days.filter((d) => d.label).map((d) => d.id) ?? [])
+  );
 
   const allTemplates: WorkoutTemplate[] = [...PRESET_TEMPLATES, ...templates];
 
   const addDay = () =>
     setDays((prev) => [
       ...prev,
-      { id: uid(), dayNumber: prev.length + 1, label: "", templateId: undefined },
+      { id: uid(), dayNumber: prev.length + 1, label: undefined, templateId: undefined },
     ]);
 
   const removeDay = (id: string) =>
@@ -33,15 +50,33 @@ export default function TrainingPlanSheet({ plan, templates, onSave, onClear, on
       return filtered.map((d, i) => ({ ...d, dayNumber: i + 1 }));
     });
 
-  const updateLabel = (id: string, value: string) =>
+  // Always marks the day as user-edited, even when clearing to empty.
+  const updateLabel = (id: string, value: string) => {
+    setLabelEditedByUser((prev) => new Set(prev).add(id));
     setDays((prev) =>
       prev.map((d) => (d.id === id ? { ...d, label: value || undefined } : d))
     );
+  };
 
-  const updateTemplate = (id: string, templateId: string) =>
+  // Auto-fills the label with the template name if the user has not manually
+  // edited that day's label yet. Once the user edits it (including clearing it),
+  // the auto-fill is permanently suppressed for that day.
+  const updateTemplate = (id: string, templateId: string) => {
+    const templateName = templateId
+      ? (allTemplates.find((t) => t.id === templateId)?.name ?? "")
+      : "";
     setDays((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, templateId: templateId || undefined } : d))
+      prev.map((d) => {
+        if (d.id !== id) return d;
+        const autoFill = !labelEditedByUser.has(id) && templateName;
+        return {
+          ...d,
+          templateId: templateId || undefined,
+          label: autoFill ? templateName : d.label,
+        };
+      })
     );
+  };
 
   const handleSave = () => {
     if (days.length === 0) return;
@@ -80,28 +115,32 @@ export default function TrainingPlanSheet({ plan, templates, onSave, onClear, on
             className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors"
           />
 
-          {/* Column labels */}
+          {/* Column headers */}
           {days.length > 0 && (
             <div className="flex items-center gap-2 px-0.5">
               <span className="w-8 shrink-0" />
               <span className="flex-1 text-[10px] uppercase tracking-widest text-zinc-700">Label</span>
               <span className="flex-1 text-[10px] uppercase tracking-widest text-zinc-700">Template</span>
+              {/* spacers for + and × buttons */}
+              <span className="w-6 shrink-0" />
               <span className="w-6 shrink-0" />
             </div>
           )}
 
-          {/* Days */}
+          {/* Empty state */}
           {days.length === 0 && (
             <p className="text-sm text-zinc-700 text-center py-4">
               No days yet. Add your first day below.
             </p>
           )}
 
+          {/* Day rows */}
           {days.map((day) => (
             <div key={day.id} className="flex items-center gap-2">
               <span className="text-xs font-bold text-zinc-500 w-8 shrink-0 text-center">
                 D{day.dayNumber}
               </span>
+
               <input
                 value={day.label ?? ""}
                 onChange={(e) => updateLabel(day.id, e.target.value)}
@@ -109,6 +148,7 @@ export default function TrainingPlanSheet({ plan, templates, onSave, onClear, on
                 maxLength={20}
                 className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors"
               />
+
               <select
                 value={day.templateId ?? ""}
                 onChange={(e) => updateTemplate(day.id, e.target.value)}
@@ -121,6 +161,16 @@ export default function TrainingPlanSheet({ plan, templates, onSave, onClear, on
                   </option>
                 ))}
               </select>
+
+              {/* Create new template — opens TemplatesSheet on top */}
+              <button
+                onClick={onCreateTemplate}
+                title="Create new template"
+                className="w-6 text-zinc-600 hover:text-zinc-300 transition-colors text-base font-black shrink-0 text-center"
+              >
+                +
+              </button>
+
               <button
                 onClick={() => removeDay(day.id)}
                 className="w-6 text-zinc-700 hover:text-red-500 transition-colors text-base font-black shrink-0 text-center"

@@ -241,6 +241,7 @@ export default function Home() {
           onSave={saveTrainingPlan}
           onClear={clearTrainingPlan}
           onClose={() => setShowTrainingPlan(false)}
+          onCreateTemplate={() => setShowTemplates(true)}
         />
       )}
 
