@@ -99,9 +99,10 @@ function WorkoutCard({
 type Props = {
   history: WorkoutSession[];
   onStartWorkout?: () => void;
+  onDeleteWorkout?: (id: string) => Promise<void>;
 };
 
-export default function HistoryScreen({ history, onStartWorkout }: Props) {
+export default function HistoryScreen({ history, onStartWorkout, onDeleteWorkout }: Props) {
   const [selected, setSelected] = useState<WorkoutSession | null>(null);
 
   const groups = useMemo<MonthGroup[]>(() => {
@@ -131,7 +132,11 @@ export default function HistoryScreen({ history, onStartWorkout }: Props) {
   return (
     <>
       {selected && (
-        <WorkoutDetailSheet workout={selected} onClose={() => setSelected(null)} />
+        <WorkoutDetailSheet
+          workout={selected}
+          onClose={() => setSelected(null)}
+          onDelete={onDeleteWorkout ? async () => onDeleteWorkout(selected.id) : undefined}
+        />
       )}
 
       {/* Header */}

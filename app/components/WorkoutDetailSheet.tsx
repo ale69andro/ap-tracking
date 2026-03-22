@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import type { WorkoutSession } from "@/app/types";
 import { getSessionDate } from "@/app/hooks/useWorkout";
 import { computeWorkoutHighlight, getEffectiveSets, getCompletedSets } from "@/app/lib/workout";
+import ConfirmModal from "./ConfirmModal";
 
 type Props = {
   workout: WorkoutSession;
   onClose: () => void;
+  onDelete?: () => Promise<void>;
 };
 
 function formatDuration(durationSeconds?: number): string {
@@ -24,7 +27,21 @@ function formatTime(ts: number): string {
   });
 }
 
-export default function WorkoutDetailSheet({ workout, onClose }: Props) {
+export default function WorkoutDetailSheet({ workout, onClose, onDelete }: Props) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting]           = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await onDelete!();
+      onClose();
+    } catch {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
   const date       = getSessionDate(workout);
   const duration   = formatDuration(workout.durationSeconds);
   const totalSets  = workout.exercises.reduce((n, e) => n + getEffectiveSets(e.sets).length, 0);
@@ -66,16 +83,27 @@ export default function WorkoutDetailSheet({ workout, onClose }: Props) {
                 {totalSets} set{totalSets !== 1 ? "s" : ""}
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="text-zinc-500 hover:text-zinc-300 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors shrink-0"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              {onDelete && (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="text-zinc-600 hover:text-red-500 text-[11px] font-semibold px-2 py-1 rounded-lg hover:bg-zinc-800 transition-colors"
+                  title="Delete workout"
+                >
+                  Delete
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="text-zinc-500 hover:text-zinc-300 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Scrollable body */}
+        {/* Scrollable body — note: ConfirmModal renders outside this div to avoid clipping */}
         <div className="overflow-y-auto px-5 pt-4 pb-8 space-y-5">
 
           {/* Workout highlight */}
@@ -167,6 +195,19 @@ export default function WorkoutDetailSheet({ workout, onClose }: Props) {
 
         </div>
       </div>
+
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete workout?"
+          description="This workout will be permanently removed."
+          confirmLabel="Delete workout"
+          cancelLabel="Keep workout"
+          loadingLabel="Deleting..."
+          loading={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
     </div>
   );
 }

@@ -67,7 +67,8 @@ export default function Home() {
   const [showTemplates, setShowTemplates]   = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null);
   const [isEditingName, setIsEditingName]   = useState(false);
-  const [pendingExit, setPendingExit] = useState<"discard" | "save" | null>(null);
+  const [pendingExit, setPendingExit]   = useState<"discard" | "save" | null>(null);
+  const [confirming, setConfirming]     = useState(false);
 
   const { user, loading: authLoading, signOut } = useAuth();
   const userId = user?.id ?? null;
@@ -88,6 +89,7 @@ export default function Home() {
     updateExerciseRest,
     saveWorkout,
     resetWorkout,
+    deleteWorkout,
     startWorkout,
     renameWorkout,
     clearTimer,
@@ -126,9 +128,14 @@ export default function Home() {
   };
 
   const handleConfirmExit = async () => {
-    if (pendingExit === "save") await saveWorkout();
-    else resetWorkout();
-    setPendingExit(null);
+    setConfirming(true);
+    try {
+      if (pendingExit === "save") await saveWorkout();
+      else resetWorkout();
+      setPendingExit(null);
+    } finally {
+      setConfirming(false);
+    }
   };
 
   if (authLoading) {
@@ -161,7 +168,14 @@ export default function Home() {
         />
       )}
       {selectedWorkout && (
-        <WorkoutDetailSheet workout={selectedWorkout} onClose={() => setSelectedWorkout(null)} />
+        <WorkoutDetailSheet
+          workout={selectedWorkout}
+          onClose={() => setSelectedWorkout(null)}
+          onDelete={async () => {
+            await deleteWorkout(selectedWorkout.id);
+            setSelectedWorkout(null);
+          }}
+        />
       )}
 
       {pendingExit && workoutActive && (
@@ -170,6 +184,8 @@ export default function Home() {
           description={pendingExit === "save" ? "Your workout will be saved." : "Your progress will be lost."}
           confirmLabel={pendingExit === "save" ? "Finish workout" : "End workout"}
           cancelLabel="Stay"
+          loadingLabel={pendingExit === "save" ? "Saving..." : "Ending..."}
+          loading={confirming}
           onConfirm={handleConfirmExit}
           onCancel={() => setPendingExit(null)}
         />
@@ -233,7 +249,11 @@ export default function Home() {
         ) : tab === "history" ? (
 
           // ── History ────────────────────────────────────────────────────
-          <HistoryScreen history={history} onStartWorkout={() => { setTab("home"); startWorkout(); }} />
+          <HistoryScreen
+            history={history}
+            onStartWorkout={() => { setTab("home"); startWorkout(); }}
+            onDeleteWorkout={deleteWorkout}
+          />
 
         ) : tab === "progress" ? (
 

@@ -469,6 +469,21 @@ export function useWorkout(userId: string | null) {
     setActiveWorkout(null);
   };
 
+  const deleteWorkout = async (workoutId: string) => {
+    if (!userId) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("workout_sessions")
+      .delete()
+      .eq("id", workoutId)
+      .eq("user_id", userId);
+    if (error) {
+      console.error("Failed to delete workout:", error);
+      throw error;
+    }
+    setHistory((prev) => prev.filter((w) => w.id !== workoutId));
+  };
+
   return {
     // Gate on userId so stale state from a previous session is never exposed.
     activeWorkout:    userId ? activeWorkout : null,
@@ -486,6 +501,7 @@ export function useWorkout(userId: string | null) {
     updateExerciseRest,
     saveWorkout,
     resetWorkout,
+    deleteWorkout,
     startWorkout,
     renameWorkout,
     clearTimer,

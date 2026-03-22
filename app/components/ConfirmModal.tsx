@@ -5,6 +5,8 @@ type Props = {
   description: string;
   confirmLabel: string;
   cancelLabel: string;
+  loadingLabel?: string;
+  loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -14,13 +16,15 @@ export default function ConfirmModal({
   description,
   confirmLabel,
   cancelLabel,
+  loadingLabel,
+  loading = false,
   onConfirm,
   onCancel,
 }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
-      onClick={onCancel}
+      onClick={loading ? undefined : onCancel}
     >
       <div
         className="w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-t-3xl px-6 pt-6 pb-10"
@@ -31,13 +35,15 @@ export default function ConfirmModal({
         <div className="space-y-3">
           <button
             onClick={onConfirm}
-            className="w-full py-4 rounded-2xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-sm tracking-widest uppercase transition-colors"
+            disabled={loading}
+            className="w-full py-4 rounded-2xl bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-60 disabled:pointer-events-none text-white font-black text-sm tracking-widest uppercase transition-colors"
           >
-            {confirmLabel}
+            {loading && loadingLabel ? loadingLabel : confirmLabel}
           </button>
           <button
             onClick={onCancel}
-            className="w-full py-4 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-sm transition-colors"
+            disabled={loading}
+            className="w-full py-4 rounded-2xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 disabled:pointer-events-none text-zinc-300 font-bold text-sm transition-colors"
           >
             {cancelLabel}
           </button>
