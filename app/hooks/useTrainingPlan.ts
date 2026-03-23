@@ -1,22 +1,40 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import type { TrainingPlan, TrainingProgress } from "@/app/types";
 
-// ─── localStorage helpers ─────────────────────────────────────────────────────
+// ─── localStorage helpers (kept for one-time migration read + legacy cleanup) ──
 
-const planKey      = (uid: string) => `ap_training_plan_${uid}`;
-const progressKey  = (uid: string) => `ap_training_progress_${uid}`;
+const planKey     = (uid: string) => `ap_training_plan_${uid}`;
+const progressKey = (uid: string) => `ap_training_progress_${uid}`;
 
-function load<T>(key: string): T | null {
+function loadLocal<T>(key: string): T | null {
   try {
     const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : null;
   } catch { return null; }
 }
 
-function save<T>(key: string, value: T): void {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+function removeLocal(key: string): void {
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+
+// ─── Supabase helpers ─────────────────────────────────────────────────────────
+
+async function upsertPlanToSupabase(
+  userId: string,
+  plan: TrainingPlan | null,
+  progress: TrainingProgress | null,
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("user_profiles")
+    .upsert(
+      { id: userId, training_plan: plan, training_progress: progress },
+      { onConflict: "id" },
+    );
+  if (error) console.error("Failed to save training plan:", error.message);
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -25,34 +43,60 @@ export function useTrainingPlan(userId: string | null) {
   const [plan,     setPlanState]     = useState<TrainingPlan | null>(null);
   const [progress, setProgressState] = useState<TrainingProgress | null>(null);
 
-  // Load from localStorage when userId is available.
-  // Deferred via Promise.resolve() to avoid synchronous setState-in-effect lint error.
+  // Load from Supabase on mount. If Supabase has no plan yet, check localStorage
+  // and migrate it once into Supabase so the user's existing plan is not lost.
   useEffect(() => {
     if (!userId) return;
-    const planData      = load<TrainingPlan>(planKey(userId));
-    const progressData  = load<TrainingProgress>(progressKey(userId));
-    Promise.resolve().then(() => {
-      setPlanState(planData);
-      setProgressState(progressData);
-    });
+
+    const supabase = createClient();
+    supabase
+      .from("user_profiles")
+      .select("training_plan, training_progress")
+      .eq("id", userId)
+      .maybeSingle()
+      .then(async ({ data, error }) => {
+        if (error) {
+          console.error("Failed to load training plan:", error.message);
+          return;
+        }
+
+        const remotePlan     = (data?.training_plan     as TrainingPlan     | null) ?? null;
+        const remoteProgress = (data?.training_progress as TrainingProgress | null) ?? null;
+
+        if (remotePlan !== null) {
+          // Supabase has a plan — use it as source of truth.
+          setPlanState(remotePlan);
+          setProgressState(remoteProgress);
+          return;
+        }
+
+        // Supabase has no plan yet — check localStorage for a one-time migration.
+        const localPlan     = loadLocal<TrainingPlan>(planKey(userId));
+        const localProgress = loadLocal<TrainingProgress>(progressKey(userId));
+
+        if (localPlan !== null) {
+          // Migrate local data into Supabase, then use it.
+          await upsertPlanToSupabase(userId, localPlan, localProgress);
+        }
+
+        setPlanState(localPlan);
+        setProgressState(localProgress);
+      });
   }, [userId]);
 
   /** Persist a new or updated plan. Resets progress if the plan ID changed. */
   const setPlan = useCallback((newPlan: TrainingPlan) => {
     if (!userId) return;
     setPlanState(newPlan);
-    save(planKey(userId), newPlan);
 
     setProgressState((prev) => {
-      if (prev?.planId === newPlan.id) return prev;
-      // New plan — start fresh progress
-      const reset: TrainingProgress = {
-        planId: newPlan.id,
-        lastCompletedDayIndex: null,
-        lastCompletedAt: null,
-      };
-      save(progressKey(userId), reset);
-      return reset;
+      const nextProgress: TrainingProgress =
+        prev?.planId === newPlan.id
+          ? prev
+          : { planId: newPlan.id, lastCompletedDayIndex: null, lastCompletedAt: null };
+
+      upsertPlanToSupabase(userId, newPlan, nextProgress);
+      return nextProgress;
     });
   }, [userId]);
 
@@ -65,7 +109,7 @@ export function useTrainingPlan(userId: string | null) {
       lastCompletedAt: Date.now(),
     };
     setProgressState(updated);
-    save(progressKey(userId), updated);
+    upsertPlanToSupabase(userId, plan, updated);
   }, [userId, plan]);
 
   /** Remove the plan and its progress entirely. */
@@ -73,14 +117,16 @@ export function useTrainingPlan(userId: string | null) {
     if (!userId) return;
     setPlanState(null);
     setProgressState(null);
-    localStorage.removeItem(planKey(userId));
-    localStorage.removeItem(progressKey(userId));
+    upsertPlanToSupabase(userId, null, null);
+    // Clean up legacy localStorage keys.
+    removeLocal(planKey(userId));
+    removeLocal(progressKey(userId));
   }, [userId]);
 
   // ─── Derived values ─────────────────────────────────────────────────────────
 
   // Only use progress if it belongs to the current plan
-  const validProgress = progress?.planId === plan?.id ? progress : null;
+  const validProgress         = progress?.planId === plan?.id ? progress : null;
   const lastCompletedDayIndex = validProgress?.lastCompletedDayIndex ?? null;
   const lastCompletedAt       = validProgress?.lastCompletedAt ?? null;
 
@@ -91,7 +137,7 @@ export function useTrainingPlan(userId: string | null) {
         : (lastCompletedDayIndex + 1) % plan.days.length
       : null;
 
-  const nextDay          = plan && nextDayIndex !== null ? plan.days[nextDayIndex]          : null;
+  const nextDay          = plan && nextDayIndex !== null ? plan.days[nextDayIndex]                    : null;
   const lastCompletedDay = plan && lastCompletedDayIndex !== null ? plan.days[lastCompletedDayIndex] : null;
 
   return {

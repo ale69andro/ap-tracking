@@ -271,7 +271,7 @@ export function useWorkout(userId: string | null, restTimerSound = false) {
       if (!prev) return prev;
       const elapsed = Date.now() - prev.startedAt;
       const newDurationMs = Math.max(elapsed, prev.durationMs + deltaSeconds * 1000);
-      return { ...prev, durationMs: newDurationMs };
+      return { ...prev, durationMs: newDurationMs, total: newDurationMs / 1000 };
     });
   };
 

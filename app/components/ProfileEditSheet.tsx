@@ -136,8 +136,8 @@ export default function ProfileEditSheet({ profile, onSave, onSignOut, onClose }
   // ── Section detail fields ──────────────────────────────────────────────────
 
   const sectionTitle: Record<Section, string> = {
-    trainingsprofil: "Trainingsprofil",
-    einstellungen:   "App-Einstellungen",
+    trainingsprofil: "Training",
+    einstellungen:   "Settings",
   };
 
   function SectionFields() {
@@ -302,8 +302,8 @@ export default function ProfileEditSheet({ profile, onSave, onSignOut, onClose }
         {activeSection === null ? (
           /* ── Overview ──────────────────────────────────────────────── */
           <div className="overflow-y-auto px-5 pt-5 pb-8 space-y-2">
-            <SectionRow label="Trainingsprofil"   summary={trainingprofilSum(form)}  onClick={() => setSection("trainingsprofil")} />
-            <SectionRow label="App-Einstellungen" summary={einstellungenSum(form)}   onClick={() => setSection("einstellungen")}  />
+            <SectionRow label="Training" summary={trainingprofilSum(form)}  onClick={() => setSection("trainingsprofil")} />
+            <SectionRow label="Settings" summary={einstellungenSum(form)}   onClick={() => setSection("einstellungen")}  />
 
             <div className="pt-5">
               <button

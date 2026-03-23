@@ -43,6 +43,27 @@ export default function SetRow({
   const weightRef  = useRef<HTMLInputElement>(null);
   const [showControls, setShowControls] = useState(false);
 
+  // ── Trash confirm state ─────────────────────────────────────────────────────
+  const [armed, setArmed] = useState(false);
+  const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTrashTap = useCallback(() => {
+    if (armed) {
+      clearTimeout(armTimerRef.current!);
+      armTimerRef.current = null;
+      setArmed(false);
+      if (isTimerSet) onClearTimer();
+      onDelete();
+    } else {
+      setArmed(true);
+      armTimerRef.current = setTimeout(() => setArmed(false), 2500);
+    }
+  }, [armed, isTimerSet, onClearTimer, onDelete]);
+
+  useEffect(() => {
+    return () => { if (armTimerRef.current) clearTimeout(armTimerRef.current); };
+  }, []);
+
   // ── Swipe-to-delete ────────────────────────────────────────────────────────
   const SWIPE_THRESHOLD = 70;
   const SWIPE_MAX       = 96;
@@ -144,9 +165,13 @@ export default function SetRow({
                   <Undo2 size={16} />
                 </button>
                 <button
-                  onClick={onDelete}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-700 hover:text-red-500 hover:bg-zinc-800 transition-colors"
-                  title="Delete"
+                  onClick={handleTrashTap}
+                  className={`w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-150 ${
+                    armed
+                      ? "text-red-500 bg-red-500/15 ring-1 ring-red-500/40 scale-110"
+                      : "text-zinc-700 hover:text-red-500 hover:bg-zinc-800"
+                  }`}
+                  title={armed ? "Tap again to confirm" : "Delete"}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -157,7 +182,7 @@ export default function SetRow({
 
             /* ── Incomplete: full input row ── */
             <>
-              <div className="grid grid-cols-[2rem_1fr_1fr_3.5rem] items-stretch gap-2 px-2 pt-2">
+              <div className="grid grid-cols-[2rem_1fr_1fr_2rem_3.5rem] items-stretch gap-2 px-2 pt-2">
 
                 {/* Set number — tap to reveal secondary controls */}
                 <button
@@ -212,6 +237,19 @@ export default function SetRow({
                   </div>
                 </div>
 
+                {/* Delete — always visible, confirm on first tap */}
+                <button
+                  onClick={handleTrashTap}
+                  className={`h-full min-h-[44px] w-full flex items-center justify-center rounded-lg transition-all duration-150 ${
+                    armed
+                      ? "text-red-500 bg-red-500/15 ring-1 ring-red-500/40 scale-110"
+                      : "text-zinc-600 hover:text-red-500 hover:bg-zinc-800/60"
+                  }`}
+                  title={armed ? "Tap again to confirm" : "Delete set"}
+                >
+                  <Trash2 size={14} />
+                </button>
+
                 {/* Complete — full-height primary action */}
                 <button
                   onClick={onComplete}
@@ -222,7 +260,7 @@ export default function SetRow({
                 </button>
               </div>
 
-              {/* Type · rest · delete — revealed by tapping the set number */}
+              {/* Type — revealed by tapping the set number */}
               {showControls && (
                 <div className="flex items-center gap-2 px-2 py-2">
                   <select
@@ -234,14 +272,6 @@ export default function SetRow({
                       <option key={t} value={t} className="text-zinc-100 bg-zinc-900">{t}</option>
                     ))}
                   </select>
-                  <div className="flex-1" />
-                  <button
-                    onClick={onDelete}
-                    className="text-zinc-700 hover:text-red-500 transition-colors px-1"
-                    title="Delete set"
-                  >
-                    <Trash2 size={14} />
-                  </button>
                 </div>
               )}
             </>
@@ -256,6 +286,7 @@ export default function SetRow({
           remaining={timerRemaining}
           total={activeTimer!.total}
           done={timerDone}
+          restedSeconds={timerDone ? activeTimer!.total : 0}
           onSkip={onClearTimer}
           onAdjust={onAdjustTimer}
         />

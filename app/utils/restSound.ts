@@ -1,4 +1,4 @@
-// Soft two-tone chime for rest-timer completion.
+// Soft double-beep for rest-timer completion.
 // Uses Web Audio API synthesis — no audio files needed.
 // Must be unlocked via unlockAudio() after a user gesture (Safari/iOS requirement).
 
@@ -8,55 +8,49 @@ export function unlockAudio(): void {
   try {
     if (!ctx) {
       ctx = new AudioContext();
-      // DEBUG — remove after confirming iOS playback
-      console.log("[restSound] AudioContext created, state:", ctx.state);
     }
     if (ctx.state === "suspended") {
-      ctx.resume().then(() => {
-        // DEBUG — remove after confirming iOS playback
-        console.log("[restSound] unlockAudio resume resolved, state:", ctx!.state);
-      });
+      ctx.resume();
     }
   } catch {
     // unsupported — fail silently
   }
 }
 
-// DEBUG gain — 0.45 for testing audibility on iPhone speaker.
-// TODO: revert to 0.18 once playback is confirmed working.
-const GAIN = 0.45;
-
 export async function playRestChime(): Promise<void> {
   try {
     if (!ctx) return;
 
-    // DEBUG — remove after confirming iOS playback
-    console.log("[restSound] playRestChime called, ctx.state:", ctx.state);
-
     // iOS re-suspends AudioContext during long silences (rest period).
-    // Resume here — this is safe after a prior user-gesture unlock.
+    // Resume here — safe after a prior user-gesture unlock.
     if (ctx.state !== "running") {
       await ctx.resume();
-      // DEBUG — remove after confirming iOS playback
-      console.log("[restSound] ctx.resume() resolved, state now:", ctx.state);
     }
 
     if (ctx.state !== "running") return; // gave up — fail silently
 
     const now = ctx.currentTime;
-    // Two soft sine tones: root → fifth, short overlap
-    [[523.25, 0], [783.99, 0.12]].forEach(([freq, delay]) => {
+
+    // Two sequential beeps: 650 Hz then 780 Hz, separated by a 120ms gap.
+    // Beep 1 at t=now, Beep 2 at t=now+0.24 (120ms duration + 120ms gap).
+    // Triangle wave adds odd harmonics (1950, 3250 Hz…) that cut through gym noise
+    // without sounding harsh. Rising pitch creates a natural confirmation feel.
+    ([
+      [650, now],
+      [780, now + 0.24],
+    ] as [number, number][]).forEach(([freq, start]) => {
       const osc  = ctx!.createOscillator();
       const gain = ctx!.createGain();
-      osc.type = "sine";
+      osc.type = "triangle";
       osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, now + delay);
-      gain.gain.linearRampToValueAtTime(GAIN, now + delay + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.35);
+      // Short attack (10ms), fast exponential decay — silent by 120ms
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.23, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
       osc.connect(gain);
       gain.connect(ctx!.destination);
-      osc.start(now + delay);
-      osc.stop(now + delay + 0.4);
+      osc.start(start);
+      osc.stop(start + 0.13); // tiny buffer after envelope reaches silence
     });
   } catch {
     // fail silently

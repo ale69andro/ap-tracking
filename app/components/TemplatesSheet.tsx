@@ -448,7 +448,7 @@ export default function TemplatesSheet({
     if (!cat) return merged;
     const groups = (ex: typeof merged[number]) =>
       isBuiltIn(ex) ? ex.primaryMuscleGroups : ex.muscleGroups;
-    return merged.filter((ex) => groups(ex).some((m) => cat.muscles.includes(m)));
+    return merged.filter((ex) => groups(ex).some((m) => cat.muscles.includes(m) || m === cat.label));
   })();
 
   // 2. Derive available equipment chips from category-filtered built-ins (exercises with equipment set)

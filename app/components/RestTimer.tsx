@@ -4,11 +4,15 @@ type Props = {
   remaining: number;
   total: number;
   done: boolean;
+  restedSeconds: number;
   onSkip: () => void;
   onAdjust: (delta: number) => void;
 };
 
-export default function RestTimer({ remaining, total, done, onSkip, onAdjust }: Props) {
+export default function RestTimer({ remaining, total, done, restedSeconds, onSkip, onAdjust }: Props) {
+  const m = Math.floor(restedSeconds / 60);
+  const s = restedSeconds % 60;
+  const restedFormatted = `${m}:${String(s).padStart(2, '0')}`;
   return (
     <div className={`mx-2 mb-2 rounded-xl px-4 py-3 ${
       done
@@ -19,7 +23,7 @@ export default function RestTimer({ remaining, total, done, onSkip, onAdjust }: 
         <div className="flex items-center justify-between">
           <div>
             <p className="text-base font-black text-white leading-none">Ready</p>
-            <p className="text-[11px] text-emerald-400 mt-0.5">Rest complete</p>
+            <p className="text-[11px] text-emerald-400 mt-0.5">Rested {restedFormatted}</p>
           </div>
           <button
             onClick={onSkip}
@@ -37,8 +41,8 @@ export default function RestTimer({ remaining, total, done, onSkip, onAdjust }: 
           <div className="flex-1 flex flex-col gap-2.5 items-end">
             <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
               <div
-                className="h-full bg-red-500 rounded-full transition-all duration-1000"
-                style={{ width: `${(remaining / total) * 100}%` }}
+                className="h-full bg-red-500 rounded-full"
+                style={{ width: `${(remaining / total) * 100}%`, transition: 'width 500ms linear' }}
               />
             </div>
             <div className="flex items-center gap-2">
