@@ -248,7 +248,7 @@ export function useWorkout(userId: string | null, restTimerSound = false) {
         if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
           navigator.vibrate([200, 100, 200]);
         }
-        if (restTimerSoundRef.current) playRestChime();
+        if (restTimerSoundRef.current) void playRestChime();
       }
     }, 500);
 
