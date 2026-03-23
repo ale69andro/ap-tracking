@@ -6,8 +6,10 @@ interface Props {
   plan: { name: string } | null;
   nextDay: TrainingDay | null;
   nextDayIndex: number | null;
+  nextDayTemplateName?: string;
   lastCompletedDay: TrainingDay | null;
   lastCompletedAt: number | null;
+  lastDayTemplateName?: string;
   coachHint?: string;
   onStart: (day: TrainingDay, dayIndex: number) => void;
   onSetup: () => void;
@@ -17,8 +19,10 @@ export default function TrainingDayCard({
   plan,
   nextDay,
   nextDayIndex,
+  nextDayTemplateName,
   lastCompletedDay,
   lastCompletedAt,
+  lastDayTemplateName,
   coachHint,
   onStart,
   onSetup,
@@ -43,7 +47,7 @@ export default function TrainingDayCard({
     : null;
 
   const nextLabel = nextDay
-    ? `Day ${nextDay.dayNumber}${nextDay.label ? ` – ${nextDay.label}` : ""}`
+    ? `Day ${nextDay.dayNumber}${nextDayTemplateName ? ` – ${nextDayTemplateName}` : ""}`
     : null;
 
   return (
@@ -58,7 +62,7 @@ export default function TrainingDayCard({
           </p>
           {lastCompletedDay && (
             <p className="text-[11px] text-zinc-600 mt-0.5">
-              {`Last: Day ${lastCompletedDay.dayNumber}${lastCompletedDay.label ? ` – ${lastCompletedDay.label}` : ""}`}
+              {`Last: Day ${lastCompletedDay.dayNumber}${lastDayTemplateName ? ` – ${lastDayTemplateName}` : ""}`}
               {lastDate ? ` · ${lastDate}` : ""}
             </p>
           )}

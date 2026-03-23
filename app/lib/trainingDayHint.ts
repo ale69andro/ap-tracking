@@ -78,7 +78,6 @@ function getDominant(
 
 /** Returns the shortest useful label for the session. */
 function sessionLabel(nextDay: TrainingDay, template: WorkoutTemplate): string {
-  if (nextDay.label) return nextDay.label;
   if (template.name) return template.name;
   return "This session";
 }

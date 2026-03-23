@@ -9,6 +9,7 @@ import type {
   TemplateExercise,
 } from "@/app/types";
 import { createClient } from "@/lib/supabase/client";
+import { arrayMove } from "@dnd-kit/sortable";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -350,6 +351,12 @@ export function useWorkout(userId: string | null) {
       return { ...prev, exercises };
     });
 
+  const reorderExercises = (fromIndex: number, toIndex: number) =>
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      return { ...prev, exercises: arrayMove(prev.exercises, fromIndex, toIndex) };
+    });
+
   // ── Sets ─────────────────────────────────────────────────────────────────
 
   const addSet = (exId: string) =>
@@ -500,6 +507,7 @@ export function useWorkout(userId: string | null) {
     addExercise,
     deleteExercise,
     moveExercise,
+    reorderExercises,
     addSet,
     deleteSet,
     updateSet,

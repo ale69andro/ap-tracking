@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { HTMLAttributes } from "react";
 import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression } from "@/app/types";
 import SetRow from "./SetRow";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
@@ -18,8 +19,7 @@ type Props = {
   onUncompleteSet: (setId: string) => void;
   onClearTimer: () => void;
   onAdjustTimer: (delta: number) => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
+  dragHandleProps?: HTMLAttributes<HTMLElement>;
 };
 
 export default function ExerciseCard({
@@ -36,8 +36,7 @@ export default function ExerciseCard({
   onClearTimer,
   onAdjustTimer,
   onUpdateExerciseRest,
-  onMoveUp,
-  onMoveDown,
+  dragHandleProps,
 }: Props) {
   const [showRest, setShowRest] = useState(false);
 
@@ -60,22 +59,14 @@ export default function ExerciseCard({
           )}
         </div>
         <div className="ml-3 shrink-0 flex items-center gap-1">
-          <button
-            onClick={onMoveUp}
-            disabled={!onMoveUp}
-            className="text-zinc-700 hover:text-zinc-400 disabled:opacity-0 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors text-xs"
-            title="Move up"
+          <div
+            {...dragHandleProps}
+            style={{ touchAction: "none" }}
+            className="text-zinc-600 hover:text-zinc-400 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors cursor-grab active:cursor-grabbing select-none"
+            title="Drag to reorder"
           >
-            ↑
-          </button>
-          <button
-            onClick={onMoveDown}
-            disabled={!onMoveDown}
-            className="text-zinc-700 hover:text-zinc-400 disabled:opacity-0 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors text-xs"
-            title="Move down"
-          >
-            ↓
-          </button>
+            ⠿
+          </div>
           <button
             onClick={onDelete}
             className="text-zinc-700 hover:text-red-500 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors text-xs"

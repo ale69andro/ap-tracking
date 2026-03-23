@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import ExerciseCard from "./components/ExerciseCard";
 import ProgressionCard from "./components/ProgressionCard";
 import ExerciseDetailSheet from "./components/ExerciseDetailSheet";
@@ -31,7 +34,7 @@ import { COACH_TEST_SCENARIOS, COACH_TEST_INITIAL } from "./constants/coachTestS
 import type { CoachTestState } from "./constants/coachTestScenarios";
 import CoachTestPanel from "./components/CoachTestPanel";
 import { PRESET_TEMPLATES } from "./constants/presetTemplates";
-import type { Equipment, ExerciseProgression, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate } from "./types";
+import type { Equipment, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate } from "./types";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 import { useEffect } from "react";
 
@@ -69,6 +72,42 @@ function IconProgress() {
   );
 }
 
+// ─── Sortable exercise card (drag-and-drop wrapper) ───────────────────────────
+
+type SortableExerciseCardProps = {
+  exercise: SessionExercise;
+  activeTimer: ActiveTimer | null;
+  lastSession?: { topWeight: number; topReps: number };
+  progression?: ExerciseProgression;
+  onDelete: () => void;
+  onDeleteSet: (setId: string) => void;
+  onAddSet: () => void;
+  onUpdateSet: (setId: string, field: keyof Omit<ExerciseSet, "id" | "completed" | "completedAt">, value: string) => void;
+  onCompleteSet: (setId: string) => void;
+  onUncompleteSet: (setId: string) => void;
+  onClearTimer: () => void;
+  onAdjustTimer: (delta: number) => void;
+  onUpdateExerciseRest: (field: "warmupRestSeconds" | "workingRestSeconds", value: number) => void;
+};
+
+function SortableExerciseCard(props: SortableExerciseCardProps) {
+  const { setNodeRef, transform, transition, isDragging, listeners, attributes } = useSortable({ id: props.exercise.id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : undefined,
+        opacity: isDragging ? 0.5 : 1,
+        position: "relative",
+      }}
+    >
+      <ExerciseCard {...props} dragHandleProps={{ ...listeners, ...attributes }} />
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -97,7 +136,7 @@ export default function Home() {
     activeTimer,
     addExercise,
     deleteExercise,
-    moveExercise,
+    reorderExercises,
     deleteSet,
     addSet,
     updateSet,
@@ -129,6 +168,18 @@ export default function Home() {
 
   const workoutActive = activeWorkout !== null;
   const exercises     = activeWorkout?.exercises ?? [];
+
+  const exerciseDndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const handleExerciseDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = exercises.findIndex((e) => e.id === active.id);
+    const newIndex = exercises.findIndex((e) => e.id === over.id);
+    if (oldIndex !== -1 && newIndex !== -1) reorderExercises(oldIndex, newIndex);
+  };
 
   const { templates, saveTemplate, deleteTemplate } = useTemplates(userId);
   const { userExercises, createUserExercise } = useExerciseLibrary(userId);
@@ -165,6 +216,17 @@ export default function Home() {
     [nextDay, templates, effectiveMuscleLoadMap],
   );
 
+  const allTemplatesForDisplay = useMemo(
+    () => [...PRESET_TEMPLATES, ...templates],
+    [templates],
+  );
+  const nextDayTemplateName = nextDay?.templateId
+    ? allTemplatesForDisplay.find((t) => t.id === nextDay.templateId)?.name
+    : undefined;
+  const lastDayTemplateName = lastCompletedDay?.templateId
+    ? allTemplatesForDisplay.find((t) => t.id === lastCompletedDay.templateId)?.name
+    : undefined;
+
   const handleAddExercise = (name: string, muscleGroups: string[]) => {
     const prog = effectiveProgressions.find((p) => p.name === name);
     const targets = prog ? getExerciseTargets(prog) : null;
@@ -197,7 +259,7 @@ export default function Home() {
   const handleStartFromDay = (day: TrainingDay, dayIndex: number) => {
     const allTemplates = [...PRESET_TEMPLATES, ...templates];
     const template = day.templateId ? allTemplates.find((t) => t.id === day.templateId) : undefined;
-    const name = day.label ? `Day ${day.dayNumber} – ${day.label}` : `Day ${day.dayNumber}`;
+    const name = template?.name ? `Day ${day.dayNumber} – ${template.name}` : `Day ${day.dayNumber}`;
     startWorkout(name, template?.id, template?.exercises, dayIndex);
   };
 
@@ -464,8 +526,10 @@ export default function Home() {
               plan={trainingPlan}
               nextDay={nextDay}
               nextDayIndex={nextDayIndex}
+              nextDayTemplateName={nextDayTemplateName}
               lastCompletedDay={lastCompletedDay}
               lastCompletedAt={lastCompletedAt}
+              lastDayTemplateName={lastDayTemplateName}
               coachHint={coachHint}
               onStart={handleStartFromDay}
               onSetup={openTrainingPlanSheet}
@@ -573,33 +637,35 @@ export default function Home() {
             </header>
 
             {/* Exercise cards */}
-            <div className="space-y-3">
-              {exercises.map((exercise, idx) => {
-                const prog = effectiveProgressions.find((p) => p.name === exercise.exerciseName);
-                const lastSessions = prog?.recentSessions ?? [];
-                const lastSess = lastSessions.length > 0 ? lastSessions[lastSessions.length - 1] : undefined;
-                return (
-                  <ExerciseCard
-                    key={exercise.id}
-                    exercise={exercise}
-                    activeTimer={activeTimer}
-                    lastSession={lastSess ? { topWeight: lastSess.topWeight, topReps: lastSess.topReps } : undefined}
-                    progression={prog}
-                    onDelete={() => deleteExercise(exercise.id)}
-                    onDeleteSet={(setId) => deleteSet(exercise.id, setId)}
-                    onAddSet={() => addSet(exercise.id)}
-                    onUpdateSet={(setId, field, value) => updateSet(exercise.id, setId, field, value)}
-                    onCompleteSet={(setId) => completeSet(exercise.id, setId)}
-                    onUncompleteSet={(setId) => uncompleteSet(exercise.id, setId)}
-                    onClearTimer={clearTimer}
-                    onAdjustTimer={adjustTimer}
-                    onUpdateExerciseRest={(field, value) => updateExerciseRest(exercise.id, field, value)}
-                    onMoveUp={idx > 0 ? () => moveExercise(exercise.id, "up") : undefined}
-                    onMoveDown={idx < exercises.length - 1 ? () => moveExercise(exercise.id, "down") : undefined}
-                  />
-                );
-              })}
-            </div>
+            <DndContext sensors={exerciseDndSensors} collisionDetection={closestCenter} onDragEnd={handleExerciseDragEnd}>
+              <SortableContext items={exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3">
+                  {exercises.map((exercise) => {
+                    const prog = effectiveProgressions.find((p) => p.name === exercise.exerciseName);
+                    const lastSessions = prog?.recentSessions ?? [];
+                    const lastSess = lastSessions.length > 0 ? lastSessions[lastSessions.length - 1] : undefined;
+                    return (
+                      <SortableExerciseCard
+                        key={exercise.id}
+                        exercise={exercise}
+                        activeTimer={activeTimer}
+                        lastSession={lastSess ? { topWeight: lastSess.topWeight, topReps: lastSess.topReps } : undefined}
+                        progression={prog}
+                        onDelete={() => deleteExercise(exercise.id)}
+                        onDeleteSet={(setId) => deleteSet(exercise.id, setId)}
+                        onAddSet={() => addSet(exercise.id)}
+                        onUpdateSet={(setId, field, value) => updateSet(exercise.id, setId, field, value)}
+                        onCompleteSet={(setId) => completeSet(exercise.id, setId)}
+                        onUncompleteSet={(setId) => uncompleteSet(exercise.id, setId)}
+                        onClearTimer={clearTimer}
+                        onAdjustTimer={adjustTimer}
+                        onUpdateExerciseRest={(field, value) => updateExerciseRest(exercise.id, field, value)}
+                      />
+                    );
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
 
             <button
               onClick={() => setShowModal(true)}

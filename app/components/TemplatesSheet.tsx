@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import type { HTMLAttributes } from "react";
 import type { WorkoutTemplate, TemplateExercise, LibraryExercise, Equipment } from "@/app/types";
 import { LIBRARY, MUSCLE_GROUP_CATEGORIES, isBuiltIn } from "@/app/constants/exercises";
+import ConfirmModal from "./ConfirmModal";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // ─── Local draft type ─────────────────────────────────────────────────────────
 
@@ -91,15 +96,13 @@ function Stepper({
 // ─── Exercise config card ─────────────────────────────────────────────────────
 
 function ExerciseConfigCard({
-  ex, isFirst, isLast, onChange, onMove, onDelete, onChangeExercise,
+  ex, onChange, onDelete, onChangeExercise, dragHandleProps,
 }: {
   ex: DraftExercise;
-  isFirst: boolean;
-  isLast: boolean;
   onChange: (updated: DraftExercise) => void;
-  onMove: (dir: 1 | -1) => void;
   onDelete: () => void;
   onChangeExercise: () => void;
+  dragHandleProps?: HTMLAttributes<HTMLElement>;
 }) {
   const update = (patch: Partial<DraftExercise>) => onChange({ ...ex, ...patch });
 
@@ -116,14 +119,14 @@ function ExerciseConfigCard({
           </p>
         </button>
         <div className="flex items-center gap-0.5 shrink-0">
-          <button type="button" onClick={() => onMove(-1)} disabled={isFirst}
-            className="w-7 h-7 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/50 disabled:opacity-20 disabled:pointer-events-none flex items-center justify-center text-xs transition-colors">
-            ↑
-          </button>
-          <button type="button" onClick={() => onMove(1)} disabled={isLast}
-            className="w-7 h-7 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/50 disabled:opacity-20 disabled:pointer-events-none flex items-center justify-center text-xs transition-colors">
-            ↓
-          </button>
+          <div
+            {...dragHandleProps}
+            style={{ touchAction: "none" }}
+            className="w-7 h-7 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-700/50 flex items-center justify-center text-xs transition-colors cursor-grab active:cursor-grabbing select-none"
+            title="Drag to reorder"
+          >
+            ⠿
+          </div>
           <button type="button" onClick={onDelete}
             className="w-7 h-7 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center text-xs transition-colors ml-1">
             ✕
@@ -232,6 +235,27 @@ function TemplateCard({
   );
 }
 
+// ─── Sortable wrapper for ExerciseConfigCard ──────────────────────────────────
+
+function SortableExerciseConfigCard(props: Omit<Parameters<typeof ExerciseConfigCard>[0], "dragHandleProps"> & { id: string }) {
+  const { id, ...rest } = props;
+  const { setNodeRef, transform, transition, isDragging, listeners, attributes } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : undefined,
+        opacity: isDragging ? 0.5 : 1,
+        position: "relative",
+      }}
+    >
+      <ExerciseConfigCard {...rest} dragHandleProps={{ ...listeners, ...attributes }} />
+    </div>
+  );
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type Props = {
@@ -258,6 +282,8 @@ export default function TemplatesSheet({
   onCreateCustom,
 }: Props) {
   const [mode, setMode]                     = useState<Mode>("list");
+  const [templateToDelete, setTemplateToDelete] = useState<WorkoutTemplate | null>(null);
+  const [deleting, setDeleting]             = useState(false);
   const [newName, setNewName]               = useState("");
   const [draftExercises, setDraftExercises] = useState<DraftExercise[]>([]);
   const [pickTarget, setPickTarget]         = useState<"new" | string>("new");
@@ -273,6 +299,22 @@ export default function TemplatesSheet({
   const [saving, setSaving]                 = useState(false);
   const [saveError, setSaveError]           = useState<string | null>(null);
   const [multiSelectedNames, setMultiSelectedNames] = useState<string[]>([]);
+
+  // ── Drag-and-drop sensors ──
+
+  const draftDndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const handleDraftDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = draftExercises.findIndex((e) => e.id === active.id);
+    const newIndex = draftExercises.findIndex((e) => e.id === over.id);
+    if (oldIndex !== -1 && newIndex !== -1) {
+      setDraftExercises((prev) => arrayMove(prev, oldIndex, newIndex));
+    }
+  };
 
   // ── Navigation helpers ──
 
@@ -348,15 +390,6 @@ export default function TemplatesSheet({
 
   const updateExercise = (id: string, updated: DraftExercise) =>
     setDraftExercises((prev) => prev.map((e) => (e.id === id ? updated : e)));
-
-  const moveExercise = (index: number, dir: 1 | -1) =>
-    setDraftExercises((prev) => {
-      const next   = [...prev];
-      const target = index + dir;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
 
   const deleteExercise = (id: string) =>
     setDraftExercises((prev) => prev.filter((e) => e.id !== id));
@@ -441,6 +474,7 @@ export default function TemplatesSheet({
   })();
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -503,7 +537,7 @@ export default function TemplatesSheet({
                       isPreset={false}
                       onStart={() => onStart(t)}
                       onCustomize={() => startBuildFromPreset(t)}
-                      onDelete={() => onDelete(t.id)}
+                      onDelete={() => setTemplateToDelete(t)}
                     />
                   ))}
                 </div>
@@ -564,20 +598,22 @@ export default function TemplatesSheet({
             />
 
             {draftExercises.length > 0 && (
-              <div className="space-y-3 mb-3">
-                {draftExercises.map((ex, i) => (
-                  <ExerciseConfigCard
-                    key={ex.id}
-                    ex={ex}
-                    isFirst={i === 0}
-                    isLast={i === draftExercises.length - 1}
-                    onChange={(updated) => updateExercise(ex.id, updated)}
-                    onMove={(dir) => moveExercise(i, dir)}
-                    onDelete={() => deleteExercise(ex.id)}
-                    onChangeExercise={() => openPicker(ex.id)}
-                  />
-                ))}
-              </div>
+              <DndContext sensors={draftDndSensors} collisionDetection={closestCenter} onDragEnd={handleDraftDragEnd}>
+                <SortableContext items={draftExercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-3 mb-3">
+                    {draftExercises.map((ex) => (
+                      <SortableExerciseConfigCard
+                        key={ex.id}
+                        id={ex.id}
+                        ex={ex}
+                        onChange={(updated) => updateExercise(ex.id, updated)}
+                        onDelete={() => deleteExercise(ex.id)}
+                        onChangeExercise={() => openPicker(ex.id)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
 
             <button
@@ -764,5 +800,24 @@ export default function TemplatesSheet({
 
       </div>
     </div>
+
+    {templateToDelete && (
+      <ConfirmModal
+        title="Delete Template?"
+        description={`"${templateToDelete.name}" will be removed. Your past workouts will remain.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loadingLabel="Deleting…"
+        loading={deleting}
+        onConfirm={async () => {
+          setDeleting(true);
+          await onDelete(templateToDelete.id);
+          setDeleting(false);
+          setTemplateToDelete(null);
+        }}
+        onCancel={() => setTemplateToDelete(null)}
+      />
+    )}
+    </>
   );
 }
