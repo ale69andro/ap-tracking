@@ -241,6 +241,10 @@ export function useWorkout(userId: string | null) {
       if (remaining <= 0) {
         clearInterval(intervalRef.current!);
         intervalRef.current = null;
+        // Notify user: short double-pulse vibration, silent fail if unsupported
+        if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+          navigator.vibrate([200, 100, 200]);
+        }
       }
     }, 500);
 
