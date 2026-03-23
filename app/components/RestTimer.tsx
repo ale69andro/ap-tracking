@@ -1,3 +1,5 @@
+import { X } from "lucide-react";
+
 type Props = {
   remaining: number;
   total: number;
@@ -21,9 +23,9 @@ export default function RestTimer({ remaining, total, done, onSkip, onAdjust }: 
           </div>
           <button
             onClick={onSkip}
-            className="text-zinc-500 hover:text-zinc-300 text-xs font-semibold transition-colors px-2 py-1 rounded-lg hover:bg-zinc-800"
+            className="text-zinc-500 hover:text-zinc-300 flex items-center justify-center px-2 py-1 rounded-lg hover:bg-zinc-800 transition-colors"
           >
-            ✕
+            <X size={15} />
           </button>
         </div>
       ) : (

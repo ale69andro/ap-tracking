@@ -5,6 +5,7 @@ import { LIBRARY, MUSCLE_GROUP_CATEGORIES, isBuiltIn } from "@/app/constants/exe
 import type { LibraryExercise, ExerciseProgression, Equipment } from "@/app/types";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
 import type { ExerciseTargets } from "@/lib/analysis/getExerciseTargets";
+import { X } from "lucide-react";
 
 type Props = {
   userExercises: LibraryExercise[];
@@ -115,7 +116,7 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
       <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-zinc-800">
           <h2 className="font-bold text-white text-lg">Add Exercise</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors">✕</button>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"><X size={16} /></button>
         </div>
 
         <div className="flex border-b border-zinc-800">

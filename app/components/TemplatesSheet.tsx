@@ -8,6 +8,7 @@ import ConfirmModal from "./ConfirmModal";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { X, GripVertical, Trash2, ChevronLeft, ArrowRight, Plus } from "lucide-react";
 
 // ─── Local draft type ─────────────────────────────────────────────────────────
 
@@ -122,14 +123,14 @@ function ExerciseConfigCard({
           <div
             {...dragHandleProps}
             style={{ touchAction: "none" }}
-            className="w-7 h-7 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-700/50 flex items-center justify-center text-xs transition-colors cursor-grab active:cursor-grabbing select-none"
+            className="w-7 h-7 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-700/50 flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing select-none"
             title="Drag to reorder"
           >
-            ⠿
+            <GripVertical size={16} />
           </div>
           <button type="button" onClick={onDelete}
-            className="w-7 h-7 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center text-xs transition-colors ml-1">
-            ✕
+            className="w-7 h-7 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-colors ml-1">
+            <Trash2 size={14} />
           </button>
         </div>
       </div>
@@ -206,13 +207,13 @@ function TemplateCard({
             </button>
           )}
           <button onClick={onStart}
-            className="text-[11px] font-bold bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded-full transition-colors">
-            Start →
+            className="inline-flex items-center gap-1 text-[11px] font-bold bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded-full transition-colors">
+            Start <ArrowRight size={12} />
           </button>
           {!isPreset && onDelete && (
             <button onClick={onDelete}
-              className="text-zinc-600 hover:text-zinc-400 w-6 h-6 flex items-center justify-center transition-colors">
-              ✕
+              className="text-zinc-600 hover:text-red-400 w-6 h-6 flex items-center justify-center transition-colors">
+              <Trash2 size={13} />
             </button>
           )}
         </div>
@@ -491,9 +492,9 @@ export default function TemplatesSheet({
           {mode !== "list" ? (
             <button
               onClick={mode === "pick" ? () => { setMultiSelectedNames([]); setMode("build"); } : resetToList}
-              className="text-sm font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
             >
-              ← Back
+              <ChevronLeft size={16} /> Back
             </button>
           ) : (
             <h2 className="text-base font-black text-white">Templates</h2>
@@ -514,7 +515,7 @@ export default function TemplatesSheet({
               onClick={mode === "list" ? onClose : mode === "pick" ? () => { setMultiSelectedNames([]); setMode("build"); } : resetToList}
               className="text-zinc-500 hover:text-zinc-300 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
             >
-              ✕
+              <X size={16} />
             </button>
           </div>
         </div>
@@ -545,7 +546,7 @@ export default function TemplatesSheet({
                   onClick={startBuild}
                   className="mt-3 w-full py-3 border border-dashed border-zinc-700 hover:border-zinc-600 text-zinc-600 hover:text-zinc-400 rounded-2xl text-sm font-semibold transition-colors"
                 >
-                  + New Template from scratch
+                  <span className="inline-flex items-center gap-1"><Plus size={13} /> New Template from scratch</span>
                 </button>
               </section>
             )}
@@ -576,7 +577,7 @@ export default function TemplatesSheet({
                   onClick={startBuild}
                   className="mt-3 w-full py-3 border border-dashed border-zinc-700 hover:border-zinc-600 text-zinc-600 hover:text-zinc-400 rounded-2xl text-sm font-semibold transition-colors"
                 >
-                  + New Template from scratch
+                  <span className="inline-flex items-center gap-1"><Plus size={13} /> New Template from scratch</span>
                 </button>
               )}
             </section>
@@ -620,7 +621,7 @@ export default function TemplatesSheet({
               onClick={() => openPicker("new")}
               className="w-full py-3 border border-dashed border-zinc-700 hover:border-zinc-500 text-zinc-500 hover:text-zinc-300 rounded-2xl text-sm font-semibold transition-colors mb-4"
             >
-              + Add Exercise
+              <span className="inline-flex items-center gap-1"><Plus size={13} /> Add Exercise</span>
             </button>
 
             <button

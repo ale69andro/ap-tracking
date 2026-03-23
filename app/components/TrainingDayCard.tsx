@@ -1,6 +1,7 @@
 "use client";
 
 import type { TrainingDay } from "@/app/types";
+import { ChevronRight, ArrowRight } from "lucide-react";
 
 interface Props {
   plan: { name: string } | null;
@@ -35,7 +36,7 @@ export default function TrainingDayCard({
         className="w-full flex items-center justify-between bg-zinc-900 border border-zinc-800/60 rounded-2xl px-4 py-3.5 mb-4 hover:border-zinc-700 transition-colors"
       >
         <span className="text-sm font-semibold text-zinc-500">Training Plan</span>
-        <span className="text-xs text-zinc-600">Set up sequence →</span>
+        <span className="inline-flex items-center gap-1 text-xs text-zinc-600">Set up sequence <ChevronRight size={13} /></span>
       </button>
     );
   }
@@ -78,9 +79,9 @@ export default function TrainingDayCard({
           {nextDay && nextDayIndex !== null && (
             <button
               onClick={() => onStart(nextDay, nextDayIndex)}
-              className="bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs font-black tracking-wider uppercase px-3 py-2 rounded-xl transition-colors"
+              className="inline-flex items-center gap-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs font-black tracking-wider uppercase px-3 py-2 rounded-xl transition-colors"
             >
-              Start →
+              Start <ArrowRight size={13} />
             </button>
           )}
         </div>

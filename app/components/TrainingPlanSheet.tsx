@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { TrainingPlan, TrainingDay, WorkoutTemplate } from "@/app/types";
 import { PRESET_TEMPLATES } from "@/app/constants/presetTemplates";
+import { Plus, X } from "lucide-react";
 
 const uid = () => crypto.randomUUID();
 
@@ -130,16 +131,16 @@ export default function TrainingPlanSheet({
               <button
                 onClick={() => onCreateTemplate(day.id)}
                 title="Create new template"
-                className="w-6 text-zinc-600 hover:text-zinc-300 transition-colors text-base font-black shrink-0 text-center"
+                className="w-6 h-6 flex items-center justify-center text-zinc-600 hover:text-zinc-300 transition-colors shrink-0"
               >
-                +
+                <Plus size={15} />
               </button>
 
               <button
                 onClick={() => removeDay(day.id)}
-                className="w-6 text-zinc-700 hover:text-red-500 transition-colors text-base font-black shrink-0 text-center"
+                className="w-6 h-6 flex items-center justify-center text-zinc-700 hover:text-red-500 transition-colors shrink-0"
               >
-                ×
+                <X size={14} />
               </button>
             </div>
           ))}
@@ -148,7 +149,7 @@ export default function TrainingPlanSheet({
             onClick={addDay}
             className="w-full py-3 border border-dashed border-zinc-800 hover:border-zinc-700 rounded-xl text-sm text-zinc-600 hover:text-zinc-400 font-semibold transition-colors"
           >
-            + Add Day
+            <span className="inline-flex items-center gap-1"><Plus size={13} /> Add Day</span>
           </button>
         </div>
 

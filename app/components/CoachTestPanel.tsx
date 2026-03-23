@@ -12,6 +12,7 @@ import type { UserProfile } from "@/app/types";
 import { COACH_TEST_SCENARIOS, COACH_TEST_INITIAL } from "@/app/constants/coachTestScenarios";
 import type { CoachTestState } from "@/app/constants/coachTestScenarios";
 import { useState } from "react";
+import { X, FlaskConical } from "lucide-react";
 
 interface Props {
   state: CoachTestState;
@@ -55,7 +56,7 @@ export default function CoachTestPanel({ state, onChange }: Props) {
         }`}
         title="Coach Test Mode"
       >
-        ⚗
+        <FlaskConical size={16} />
       </button>
 
       {/* Panel */}
@@ -68,9 +69,9 @@ export default function CoachTestPanel({ state, onChange }: Props) {
             </span>
             <button
               onClick={() => setOpen(false)}
-              className="text-zinc-500 hover:text-zinc-300 text-sm leading-none px-1 transition-colors"
+              className="text-zinc-500 hover:text-zinc-300 flex items-center justify-center px-1 transition-colors"
             >
-              ✕
+              <X size={15} />
             </button>
           </div>
 

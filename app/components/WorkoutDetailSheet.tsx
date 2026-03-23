@@ -5,6 +5,7 @@ import type { WorkoutSession } from "@/app/types";
 import { getSessionDate } from "@/app/hooks/useWorkout";
 import { computeWorkoutHighlight, getEffectiveSets, getCompletedSets } from "@/app/lib/workout";
 import ConfirmModal from "./ConfirmModal";
+import { X } from "lucide-react";
 
 type Props = {
   workout: WorkoutSession;
@@ -97,7 +98,7 @@ export default function WorkoutDetailSheet({ workout, onClose, onDelete }: Props
                 onClick={onClose}
                 className="text-zinc-500 hover:text-zinc-300 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
           </div>

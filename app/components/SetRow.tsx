@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import type { ExerciseSet, ActiveTimer, SetType } from "@/app/types";
 import { getTimerRemaining } from "@/app/hooks/useWorkout";
 import RestTimer from "./RestTimer";
+import { Undo2, Trash2 } from "lucide-react";
 
 const SET_TYPES: SetType[] = ["Normal", "Warm-up", "Drop Set"];
 
@@ -137,17 +138,17 @@ export default function SetRow({
               <div className="flex items-center justify-center gap-1.5">
                 <button
                   onClick={onUncomplete}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors text-xs"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
                   title="Undo"
                 >
-                  ↩
+                  <Undo2 size={16} />
                 </button>
                 <button
                   onClick={onDelete}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-700 hover:text-red-500 hover:bg-zinc-800 transition-colors text-[10px]"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-700 hover:text-red-500 hover:bg-zinc-800 transition-colors"
                   title="Delete"
                 >
-                  ✕
+                  <Trash2 size={14} />
                 </button>
               </div>
             </div>
@@ -236,10 +237,10 @@ export default function SetRow({
                   <div className="flex-1" />
                   <button
                     onClick={onDelete}
-                    className="text-[10px] text-zinc-700 hover:text-red-500 transition-colors px-1 font-medium"
+                    className="text-zinc-700 hover:text-red-500 transition-colors px-1"
                     title="Delete set"
                   >
-                    ✕
+                    <Trash2 size={14} />
                   </button>
                 </div>
               )}

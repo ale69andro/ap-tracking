@@ -37,6 +37,7 @@ import { PRESET_TEMPLATES } from "./constants/presetTemplates";
 import type { Equipment, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate } from "./types";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 import { useEffect } from "react";
+import { ChevronRight, Plus as LucidePlus } from "lucide-react";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -509,7 +510,7 @@ export default function Home() {
               onClick={() => startWorkout()}
               className="w-full py-5 rounded-2xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-base tracking-widest uppercase transition-all shadow-[0_0_24px_rgba(239,68,68,0.35)] hover:shadow-[0_0_36px_rgba(239,68,68,0.5)] mb-4"
             >
-              + Start Workout
+              <span className="inline-flex items-center gap-2"><LucidePlus size={16} /> Start Workout</span>
             </button>
 
             <button
@@ -517,8 +518,8 @@ export default function Home() {
               className="w-full flex items-center justify-between bg-zinc-900 border border-zinc-800/60 rounded-2xl px-4 py-3 mb-4 hover:border-zinc-700 transition-colors"
             >
               <span className="text-sm font-semibold text-zinc-400">Templates</span>
-              <span className="text-xs text-zinc-600">
-                {templates.length > 0 ? `${templates.length} saved →` : "Create one →"}
+              <span className="inline-flex items-center gap-0.5 text-xs text-zinc-600">
+                {templates.length > 0 ? `${templates.length} saved` : "Create one"} <ChevronRight size={13} />
               </span>
             </button>
 
@@ -671,7 +672,7 @@ export default function Home() {
               onClick={() => setShowModal(true)}
               className="mt-4 w-full py-4 rounded-2xl border border-dashed border-zinc-800 hover:border-zinc-700 text-zinc-600 hover:text-zinc-400 font-semibold text-sm transition-colors"
             >
-              + Add Exercise
+              <span className="inline-flex items-center gap-2"><LucidePlus size={14} /> Add Exercise</span>
             </button>
 
             {exercises.length > 0 && (

@@ -3,6 +3,7 @@ import type { HTMLAttributes } from "react";
 import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression } from "@/app/types";
 import SetRow from "./SetRow";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
+import { GripVertical, Trash2, ChevronUp, ChevronDown, Plus } from "lucide-react";
 
 type Props = {
   exercise: SessionExercise;
@@ -65,14 +66,14 @@ export default function ExerciseCard({
             className="text-zinc-600 hover:text-zinc-400 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors cursor-grab active:cursor-grabbing select-none"
             title="Drag to reorder"
           >
-            ⠿
+            <GripVertical size={16} />
           </div>
           <button
             onClick={onDelete}
-            className="text-zinc-700 hover:text-red-500 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors text-xs"
+            className="text-zinc-700 hover:text-red-500 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
             title="Delete exercise"
           >
-            ✕
+            <Trash2 size={15} />
           </button>
         </div>
       </div>
@@ -157,7 +158,7 @@ export default function ExerciseCard({
           onClick={onAddSet}
           className="mt-1 w-full py-2 rounded-xl border border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 text-xs font-semibold transition-colors"
         >
-          + Add Set
+          <span className="inline-flex items-center gap-1"><Plus size={12} /> Add Set</span>
         </button>
       </div>
 
@@ -167,7 +168,7 @@ export default function ExerciseCard({
           onClick={() => setShowRest((v) => !v)}
           className="w-full py-1 text-[10px] text-zinc-700 hover:text-zinc-500 uppercase tracking-widest font-semibold transition-colors"
         >
-          Rest {showRest ? "↑" : "↓"}
+          <span className="inline-flex items-center gap-1">Rest {showRest ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>
         </button>
         {showRest && (
           <div className="space-y-1.5 pt-1">

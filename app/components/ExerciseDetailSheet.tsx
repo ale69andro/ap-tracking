@@ -4,6 +4,7 @@ import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import { findBuiltIn } from "@/app/constants/exercises";
 import { getExerciseAlternatives } from "@/lib/analysis/getExerciseAlternatives";
 import SparkLine from "./SparkLine";
+import { X } from "lucide-react";
 
 const TREND_CONFIG = {
   up:   { label: "Progressing",    color: "text-emerald-400", spark: "#10b981" },
@@ -69,7 +70,7 @@ export default function ExerciseDetailSheet({ progression, onClose }: Props) {
             onClick={onClose}
             className="shrink-0 text-zinc-500 hover:text-zinc-300 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
           >
-            ✕
+            <X size={16} />
           </button>
         </div>
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { ChevronLeft } from "lucide-react";
 
 export default function SignupPage() {
   const [email, setEmail]       = useState("");
@@ -57,7 +58,7 @@ export default function SignupPage() {
             href="/auth/login"
             className="text-zinc-400 hover:text-white text-sm font-semibold transition-colors"
           >
-            ← Back to sign in
+            <span className="inline-flex items-center gap-1"><ChevronLeft size={14} /> Back to sign in</span>
           </Link>
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { UserProfile } from "@/app/types";
+import { X } from "lucide-react";
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
@@ -107,7 +108,7 @@ export default function ProfileEditSheet({ profile, onSave, onSignOut, onClose }
             onClick={onClose}
             className="text-zinc-500 hover:text-zinc-300 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
           >
-            ✕
+            <X size={16} />
           </button>
         </div>
 
