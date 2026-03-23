@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { unlockAudio, playRestChime } from "@/app/utils/restSound";
 import type {
   ExerciseSet,
   SessionExercise,
@@ -155,7 +156,7 @@ const ACTIVE_KEY = "ap_active_workout";
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useWorkout(userId: string | null) {
+export function useWorkout(userId: string | null, restTimerSound = false) {
   // Active workout: per-device in localStorage, tagged with userId for safety.
   // We load eagerly (sync) to avoid a flash, then validate userId in an effect.
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(() => {
@@ -174,7 +175,9 @@ export function useWorkout(userId: string | null) {
   const [completedSession, setCompletedSession] = useState<WorkoutSession | null>(null);
   const [activeTimer, setActiveTimer]           = useState<ActiveTimer | null>(null);
   const [, setTick]                             = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const restTimerSoundRef = useRef(restTimerSound);
+  useEffect(() => { restTimerSoundRef.current = restTimerSound; }, [restTimerSound]);
 
   // ── Validate stored active workout against current user ──────────────────
   // If the stored workout belongs to a different account, purge it from
@@ -245,6 +248,7 @@ export function useWorkout(userId: string | null) {
         if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
           navigator.vibrate([200, 100, 200]);
         }
+        if (restTimerSoundRef.current) playRestChime();
       }
     }, 500);
 
@@ -402,6 +406,7 @@ export function useWorkout(userId: string | null) {
     );
 
   const completeSet = (exId: string, setId: string) => {
+    unlockAudio(); // ensures AudioContext is running before the timer counts down
     const completedAt = Date.now();
     // Derive rest duration from exercise-level presets (closed over current snapshot).
     const exercise = activeWorkout?.exercises.find((e) => e.id === exId);

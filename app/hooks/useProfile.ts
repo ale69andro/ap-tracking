@@ -13,6 +13,8 @@ type ProfileRow = {
   goal: string;
   training_days_per_week: number;
   sleep_quality: string;
+  keep_screen_on: boolean | null;
+  rest_timer_sound: boolean | null;
 };
 
 function rowToProfile(row: ProfileRow): UserProfile {
@@ -24,6 +26,8 @@ function rowToProfile(row: ProfileRow): UserProfile {
     goal:                row.goal       as UserProfile["goal"],
     trainingDaysPerWeek: row.training_days_per_week,
     sleepQuality:        row.sleep_quality as UserProfile["sleepQuality"],
+    keepScreenOn:        row.keep_screen_on  ?? true,
+    restTimerSound:      row.rest_timer_sound ?? false,
   };
 }
 
@@ -71,6 +75,8 @@ export function useProfile(userId: string | null) {
         goal:                   data.goal,
         training_days_per_week: data.trainingDaysPerWeek,
         sleep_quality:          data.sleepQuality,
+        keep_screen_on:         data.keepScreenOn  ?? true,
+        rest_timer_sound:       data.restTimerSound ?? false,
         updated_at:             new Date().toISOString(),
       },
       { onConflict: "id" },

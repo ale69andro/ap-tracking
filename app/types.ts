@@ -228,6 +228,8 @@ export type UserProfile = {
   goal: "hypertrophy" | "strength" | "recomp";
   trainingDaysPerWeek: number;
   sleepQuality: "low" | "medium" | "high";
+  keepScreenOn?:    boolean;
+  restTimerSound?:  boolean;
 };
 
 // ─── Training Plan ────────────────────────────────────────────────────────────

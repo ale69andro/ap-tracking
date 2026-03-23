@@ -24,6 +24,7 @@ import { useAuth } from "./hooks/useAuth";
 import { useExerciseLibrary } from "./hooks/useExerciseLibrary";
 import { useTrainingPlan } from "./hooks/useTrainingPlan";
 import { useScrollLock } from "./hooks/useScrollLock";
+import { useWakeLock } from "./hooks/useWakeLock";
 import AddExerciseModal from "./components/AddExerciseModal";
 import ConfirmModal from "./components/ConfirmModal";
 import TrainingDayCard from "./components/TrainingDayCard";
@@ -152,7 +153,7 @@ export default function Home() {
     clearTimer,
     adjustTimer,
     dismissSummary,
-  } = useWorkout(userId);
+  } = useWorkout(userId, profile?.restTimerSound ?? false);
 
   // Lock body scroll whenever any sheet or modal overlay is visible.
   // Must be after useWorkout so completedSession is initialised.
@@ -168,6 +169,7 @@ export default function Home() {
   );
 
   const workoutActive = activeWorkout !== null;
+  useWakeLock(workoutActive && profile?.keepScreenOn !== false);
   const exercises     = activeWorkout?.exercises ?? [];
 
   const exerciseDndSensors = useSensors(
