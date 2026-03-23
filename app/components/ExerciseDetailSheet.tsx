@@ -1,6 +1,8 @@
 import type { ExerciseProgression } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
+import { findBuiltIn } from "@/app/constants/exercises";
+import { getExerciseAlternatives } from "@/lib/analysis/getExerciseAlternatives";
 import SparkLine from "./SparkLine";
 
 const TREND_CONFIG = {
@@ -24,6 +26,9 @@ function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND_CONFIG {
 
 export default function ExerciseDetailSheet({ progression, onClose }: Props) {
   const { name, muscleGroups, bestWeight, recentSessions, analysis } = progression;
+
+  const builtIn     = findBuiltIn(name);
+  const alternatives = builtIn ? getExerciseAlternatives(builtIn) : [];
   const trendKey   = resolvedTrendKey(progression);
   const t          = TREND_CONFIG[trendKey];
   const nextTarget = computeNextTarget(recentSessions, trendKey);
@@ -160,6 +165,21 @@ export default function ExerciseDetailSheet({ progression, onClose }: Props) {
 
           {recentSessions.length === 0 && (
             <p className="text-sm text-zinc-600 text-center py-4">No session data yet.</p>
+          )}
+
+          {/* Alternatives */}
+          {alternatives.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">Try Instead</p>
+              <div className="space-y-1.5">
+                {alternatives.map((alt) => (
+                  <div key={alt.name} className="bg-zinc-800/50 rounded-xl px-4 py-2.5">
+                    <p className="text-xs font-semibold text-zinc-200">{alt.name}</p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">{alt.reason}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>

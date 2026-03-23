@@ -82,7 +82,8 @@ export const LIBRARY: BuiltInExercise[] = [
   defineExercise({ id: "cable-pullover",         name: "Cable Pullover",         category: "Back",      primaryMuscleGroups: ["Lats"],                        secondaryMuscleGroups: [],                          equipment: "Cable",      movementType: "Pull-down", coachTags: ["isolation"]                    }),
   defineExercise({ id: "pull-up",                name: "Pull Up",                category: "Back",      primaryMuscleGroups: ["Lats", "Upper Back"],          secondaryMuscleGroups: ["Biceps"],                  equipment: "Bodyweight", movementType: "Pull-up",   coachTags: ["compound"]                     }),
   defineExercise({ id: "chin-up",                name: "Chin Up",                category: "Back",      primaryMuscleGroups: ["Lats"],                        secondaryMuscleGroups: ["Biceps"],                  equipment: "Bodyweight", movementType: "Pull-up",   coachTags: ["compound"]                     }),
-  defineExercise({ id: "face-pull",              name: "Face Pull",              category: "Back",      primaryMuscleGroups: ["Rear Delts", "Upper Back"],    secondaryMuscleGroups: [],                          equipment: "Cable",      movementType: "Row",       coachTags: ["isolation"]                    }),
+  defineExercise({ id: "face-pull",              name: "Face Pull",              category: "Shoulders", primaryMuscleGroups: ["Rear Delts", "Upper Back"],    secondaryMuscleGroups: [],                          equipment: "Cable",      movementType: "Row",       coachTags: ["isolation"]                    }),
+  defineExercise({ id: "machine-row",            name: "Machine Row",            category: "Back",      primaryMuscleGroups: ["Back"],                        secondaryMuscleGroups: ["Biceps"],                  equipment: "Machine",    movementType: "Row",       coachTags: ["compound", "beginner"]         }),
 
   // ── Shoulders ────────────────────────────────────────────────────────────────
   defineExercise({ id: "shoulder-press",          name: "Shoulder Press",          category: "Shoulders", primaryMuscleGroups: ["Shoulders"],                   secondaryMuscleGroups: ["Triceps"],                 equipment: "Barbell",    movementType: "Press",     coachTags: ["compound"]                     }),
@@ -109,6 +110,7 @@ export const LIBRARY: BuiltInExercise[] = [
   defineExercise({ id: "cable-curl",         name: "Cable Curl",          category: "Arms", primaryMuscleGroups: ["Biceps"],              secondaryMuscleGroups: [],              equipment: "Cable",      movementType: "Curl",      coachTags: ["isolation"]                    }),
   defineExercise({ id: "cable-hammer-curl",  name: "Cable Hammer Curl",   category: "Arms", primaryMuscleGroups: ["Biceps", "Forearms"],  secondaryMuscleGroups: [],              equipment: "Cable",      movementType: "Curl",      coachTags: ["isolation"]                    }),
   defineExercise({ id: "spider-curl",        name: "Spider Curl",         category: "Arms", primaryMuscleGroups: ["Biceps"],              secondaryMuscleGroups: [],              equipment: "Barbell",    movementType: "Curl",      coachTags: ["isolation"]                    }),
+  defineExercise({ id: "machine-preacher-curl", name: "Machine Preacher Curl", category: "Arms", primaryMuscleGroups: ["Biceps"],           secondaryMuscleGroups: [],              equipment: "Machine",    movementType: "Curl",      coachTags: ["isolation", "beginner"]        }),
 
   // ── Triceps ──────────────────────────────────────────────────────────────────
   defineExercise({ id: "close-grip-bench",       name: "Close-Grip Bench Press",    category: "Arms", primaryMuscleGroups: ["Triceps"],  secondaryMuscleGroups: ["Chest"],   equipment: "Barbell",    movementType: "Press",     coachTags: ["compound"]                     }),
@@ -140,6 +142,7 @@ export const LIBRARY: BuiltInExercise[] = [
   defineExercise({ id: "calf-raise",          name: "Calf Raise",             category: "Legs",   primaryMuscleGroups: ["Calves"],           secondaryMuscleGroups: [],                      equipment: "Machine",    movementType: "Raise",     coachTags: ["isolation"]                    }),
   defineExercise({ id: "seated-calf-raise",   name: "Seated Calf Raise",      category: "Legs",   primaryMuscleGroups: ["Calves"],           secondaryMuscleGroups: [],                      equipment: "Machine",    movementType: "Raise",     coachTags: ["isolation"]                    }),
   defineExercise({ id: "leg-press-calf-raise", name: "Leg Press Calf Raise",  category: "Legs",   primaryMuscleGroups: ["Calves"],           secondaryMuscleGroups: [],                      equipment: "Machine",    movementType: "Raise",     coachTags: ["isolation"]                    }),
+  defineExercise({ id: "hip-adductor-machine", name: "Hip Adductor Machine",  category: "Legs",   primaryMuscleGroups: ["Adductors"],        secondaryMuscleGroups: [],                      equipment: "Machine",    movementType: "Raise",     coachTags: ["isolation", "beginner"]        }),
 
   // ── Glutes ───────────────────────────────────────────────────────────────────
   defineExercise({ id: "hip-thrust",          name: "Hip Thrust",             category: "Glutes", primaryMuscleGroups: ["Glutes"],  secondaryMuscleGroups: ["Hamstrings"],  equipment: "Barbell",    movementType: "Hinge",     coachTags: ["compound"]                     }),
@@ -175,12 +178,17 @@ export const MUSCLE_GROUP_CATEGORIES = [
   { label: "Back",      muscles: ["Back", "Upper Back", "Lats"] },
   { label: "Shoulders", muscles: ["Shoulders", "Front Delts", "Side Delts", "Rear Delts"] },
   { label: "Arms",      muscles: ["Biceps", "Triceps", "Forearms"] },
-  { label: "Legs",      muscles: ["Quads", "Hamstrings", "Calves"] },
+  { label: "Legs",      muscles: ["Quads", "Hamstrings", "Calves", "Adductors"] },
   { label: "Glutes",    muscles: ["Glutes"] },
   { label: "Core",      muscles: ["Core"] },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Type guard — narrows LibraryExercise to BuiltInExercise. */
+export function isBuiltIn(ex: LibraryExercise): ex is BuiltInExercise {
+  return "primaryMuscleGroups" in ex;
+}
 
 /** Returns the built-in entry for a given exercise name (case-insensitive), or undefined. */
 export function findBuiltIn(name: string): BuiltInExercise | undefined {

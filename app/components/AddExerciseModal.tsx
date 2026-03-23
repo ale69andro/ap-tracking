@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LIBRARY, MUSCLE_GROUP_CATEGORIES } from "@/app/constants/exercises";
+import { LIBRARY, MUSCLE_GROUP_CATEGORIES, isBuiltIn } from "@/app/constants/exercises";
 import type { LibraryExercise, ExerciseProgression, Equipment } from "@/app/types";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
 import type { ExerciseTargets } from "@/lib/analysis/getExerciseTargets";
@@ -24,6 +24,19 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [selectedNames, setSelectedNames] = useState<string[]>([]);
+
+  const toggleSelect = (name: string) =>
+    setSelectedNames((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+
+  const handleConfirm = () => {
+    // Add in mergedLibrary (visible list) order, not tap order
+    const toAdd = mergedLibrary.filter((ex) => selectedNames.includes(ex.name));
+    toAdd.forEach((ex) => onAdd(ex.name, ex.muscleGroups));
+    onClose();
+  };
 
   // Precompute targets per exercise name (lowercase key) from available progressions.
   const targetsMap = new Map<string, ExerciseTargets>(
@@ -42,7 +55,9 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
     if (activeCategory === "All") return mergedLibrary;
     const cat = MUSCLE_GROUP_CATEGORIES.find((c) => c.label === activeCategory);
     if (!cat) return mergedLibrary;
-    return mergedLibrary.filter((ex) => ex.muscleGroups.length === 0 || ex.muscleGroups.some((m) => cat.muscles.includes(m)));
+    const groups = (ex: typeof mergedLibrary[number]) =>
+      isBuiltIn(ex) ? ex.primaryMuscleGroups : ex.muscleGroups;
+    return mergedLibrary.filter((ex) => groups(ex).some((m) => cat.muscles.includes(m)));
   })();
 
   // 2. Derive available equipment chips from category-filtered built-ins (exercises with equipment set)
@@ -167,11 +182,15 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
                     const hasProgression = targetsMap.has(key);
                     const showNoHistory = hasProgression && !targets?.last && !targets?.target;
 
+                    const isSelected = selectedNames.includes(ex.name);
+
                     return (
                       <button
                         key={ex.name}
-                        onClick={() => onAdd(ex.name, ex.muscleGroups)}
-                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
+                        onClick={() => toggleSelect(ex.name)}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${
+                          isSelected ? "bg-zinc-800 ring-1 ring-red-600/30" : "hover:bg-zinc-800"
+                        }`}
                       >
                         <div className="min-w-0 text-left">
                           <p className="text-sm font-semibold text-zinc-100">{ex.name}</p>
@@ -194,13 +213,23 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
                             </p>
                           )}
                         </div>
-                        <span className="text-zinc-700 font-black text-base ml-3 shrink-0">+</span>
+                        <span className={`font-black text-base ml-3 shrink-0 ${isSelected ? "text-red-500" : "text-zinc-700"}`}>
+                          {isSelected ? "✓" : "+"}
+                        </span>
                       </button>
                     );
                   })}
                 </div>
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-zinc-900 to-transparent" />
               </div>
+              {selectedNames.length > 0 && (
+                <button
+                  onClick={handleConfirm}
+                  className="mt-3 w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-colors"
+                >
+                  Add {selectedNames.length} Exercise{selectedNames.length !== 1 ? "s" : ""}
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-4">

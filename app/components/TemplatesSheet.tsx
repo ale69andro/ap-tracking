@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { WorkoutTemplate, TemplateExercise, LibraryExercise, Equipment } from "@/app/types";
-import { LIBRARY, MUSCLE_GROUP_CATEGORIES } from "@/app/constants/exercises";
+import { LIBRARY, MUSCLE_GROUP_CATEGORIES, isBuiltIn } from "@/app/constants/exercises";
 
 // ─── Local draft type ─────────────────────────────────────────────────────────
 
@@ -272,6 +272,7 @@ export default function TemplatesSheet({
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | undefined>(undefined);
   const [saving, setSaving]                 = useState(false);
   const [saveError, setSaveError]           = useState<string | null>(null);
+  const [multiSelectedNames, setMultiSelectedNames] = useState<string[]>([]);
 
   // ── Navigation helpers ──
 
@@ -302,6 +303,7 @@ export default function TemplatesSheet({
     setSelectedMuscles([]);
     setSaving(false);
     setSaveError(null);
+    setMultiSelectedNames([]);
     setMode("pick");
   };
 
@@ -318,6 +320,29 @@ export default function TemplatesSheet({
         prev.map((e) => (e.id === pickTarget ? { ...e, name, muscleGroups } : e))
       );
     }
+    setMode("build");
+  };
+
+  const handleConfirmMultiPick = () => {
+    // Build merged library (same logic as categoryFiltered) for stable ordering
+    const builtInNames = new Set(LIBRARY.map((e) => e.name.toLowerCase()));
+    const customOnly = userExercises.filter((e) => !builtInNames.has(e.name.toLowerCase()));
+    const merged = [...LIBRARY, ...customOnly];
+    const toAdd = merged.filter((ex) => multiSelectedNames.includes(ex.name));
+    setDraftExercises((prev) => [
+      ...prev,
+      ...toAdd.map((ex) => ({
+        id: uid(),
+        name: ex.name,
+        muscleGroups: ex.muscleGroups,
+        sets: 3,
+        targetReps: 8,
+        restSeconds: 90,
+        startWeight: "",
+        notes: "",
+      })),
+    ]);
+    setMultiSelectedNames([]);
     setMode("build");
   };
 
@@ -387,7 +412,9 @@ export default function TemplatesSheet({
     if (activeCategory === "All") return merged;
     const cat = MUSCLE_GROUP_CATEGORIES.find((c) => c.label === activeCategory);
     if (!cat) return merged;
-    return merged.filter((ex) => ex.muscleGroups.length === 0 || ex.muscleGroups.some((m) => cat.muscles.includes(m)));
+    const groups = (ex: typeof merged[number]) =>
+      isBuiltIn(ex) ? ex.primaryMuscleGroups : ex.muscleGroups;
+    return merged.filter((ex) => groups(ex).some((m) => cat.muscles.includes(m)));
   })();
 
   // 2. Derive available equipment chips from category-filtered built-ins (exercises with equipment set)
@@ -429,7 +456,7 @@ export default function TemplatesSheet({
         <div className="flex items-center justify-between px-5 pt-2 pb-4 border-b border-zinc-800">
           {mode !== "list" ? (
             <button
-              onClick={mode === "pick" ? () => setMode("build") : resetToList}
+              onClick={mode === "pick" ? () => { setMultiSelectedNames([]); setMode("build"); } : resetToList}
               className="text-sm font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
             >
               ← Back
@@ -450,7 +477,7 @@ export default function TemplatesSheet({
               </span>
             )}
             <button
-              onClick={mode === "list" ? onClose : mode === "pick" ? () => setMode("build") : resetToList}
+              onClick={mode === "list" ? onClose : mode === "pick" ? () => { setMultiSelectedNames([]); setMode("build"); } : resetToList}
               className="text-zinc-500 hover:text-zinc-300 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
             >
               ✕
@@ -639,28 +666,52 @@ export default function TemplatesSheet({
                     {filteredExercises.length === 0 ? (
                       <p className="text-zinc-600 text-sm text-center py-6">No exercises found.</p>
                     ) : (
-                      filteredExercises.map((ex) => (
-                        <button
-                          key={ex.name}
-                          onClick={() => handlePickExercise(ex.name, ex.muscleGroups)}
-                          className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
-                        >
-                          <div className="text-left min-w-0">
-                            <p className="text-sm font-semibold text-zinc-100 truncate">{ex.name}</p>
-                            <p className="text-[11px] text-zinc-500">
-                              {ex.muscleGroups.join(" · ")}
-                              {ex.equipment && (
-                                <span className="text-zinc-700 ml-1.5">· {ex.equipment}</span>
-                              )}
-                            </p>
-                          </div>
-                          <span className="shrink-0 ml-3 text-zinc-700 font-black text-base">+</span>
-                        </button>
-                      ))
+                      filteredExercises.map((ex) => {
+                        const isMultiMode = pickTarget === "new";
+                        const isSelected = multiSelectedNames.includes(ex.name);
+                        return (
+                          <button
+                            key={ex.name}
+                            onClick={() =>
+                              isMultiMode
+                                ? setMultiSelectedNames((prev) =>
+                                    prev.includes(ex.name)
+                                      ? prev.filter((n) => n !== ex.name)
+                                      : [...prev, ex.name]
+                                  )
+                                : handlePickExercise(ex.name, ex.muscleGroups)
+                            }
+                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${
+                              isMultiMode && isSelected ? "bg-zinc-800 ring-1 ring-red-600/30" : "hover:bg-zinc-800"
+                            }`}
+                          >
+                            <div className="text-left min-w-0">
+                              <p className="text-sm font-semibold text-zinc-100 truncate">{ex.name}</p>
+                              <p className="text-[11px] text-zinc-500">
+                                {ex.muscleGroups.join(" · ")}
+                                {ex.equipment && (
+                                  <span className="text-zinc-700 ml-1.5">· {ex.equipment}</span>
+                                )}
+                              </p>
+                            </div>
+                            <span className={`shrink-0 ml-3 font-black text-base ${isMultiMode && isSelected ? "text-red-500" : "text-zinc-700"}`}>
+                              {isMultiMode && isSelected ? "✓" : "+"}
+                            </span>
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                   <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-zinc-900 to-transparent" />
                 </div>
+                {pickTarget === "new" && multiSelectedNames.length > 0 && (
+                  <button
+                    onClick={handleConfirmMultiPick}
+                    className="mt-3 w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-colors"
+                  >
+                    Add {multiSelectedNames.length} Exercise{multiSelectedNames.length !== 1 ? "s" : ""}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="px-5 pt-4 pb-8 space-y-4">

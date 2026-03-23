@@ -179,7 +179,6 @@ export default function Home() {
         : targets?.last?.reps != null ? String(targets.last.reps) : "";
 
     addExercise(name, muscleGroups, initialWeight, initialReps);
-    setShowModal(false);
   };
 
   const handleCreateCustomExercise = async (name: string, muscleGroups: string[], equipment?: Equipment) => {
