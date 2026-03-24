@@ -223,13 +223,6 @@ export default function Home() {
     () => [...PRESET_TEMPLATES, ...templates],
     [templates],
   );
-  const nextDayTemplateName = nextDay?.templateId
-    ? allTemplatesForDisplay.find((t) => t.id === nextDay.templateId)?.name
-    : undefined;
-  const lastDayTemplateName = lastCompletedDay?.templateId
-    ? allTemplatesForDisplay.find((t) => t.id === lastCompletedDay.templateId)?.name
-    : undefined;
-
   const handleAddExercise = (name: string, muscleGroups: string[]) => {
     const prog = effectiveProgressions.find((p) => p.name === name);
     const targets = prog ? getExerciseTargets(prog) : null;
@@ -529,10 +522,9 @@ export default function Home() {
               plan={trainingPlan}
               nextDay={nextDay}
               nextDayIndex={nextDayIndex}
-              nextDayTemplateName={nextDayTemplateName}
+              templates={allTemplatesForDisplay}
               lastCompletedDay={lastCompletedDay}
               lastCompletedAt={lastCompletedAt}
-              lastDayTemplateName={lastDayTemplateName}
               coachHint={coachHint}
               onStart={handleStartFromDay}
               onSetup={openTrainingPlanSheet}

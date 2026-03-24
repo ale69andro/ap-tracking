@@ -1,17 +1,17 @@
 "use client";
 
 import { useState, useRef } from "react";
-import type { TrainingDay } from "@/app/types";
+import { AnimatePresence, motion } from "framer-motion";
+import type { TrainingDay, WorkoutTemplate } from "@/app/types";
 import { ChevronRight, ArrowRight } from "lucide-react";
 
 interface Props {
   plan: { name: string; days: TrainingDay[] } | null;
   nextDay: TrainingDay | null;
   nextDayIndex: number | null;
-  nextDayTemplateName?: string;
+  templates: WorkoutTemplate[];
   lastCompletedDay: TrainingDay | null;
   lastCompletedAt: number | null;
-  lastDayTemplateName?: string;
   coachHint?: string;
   onStart: (day: TrainingDay, dayIndex: number) => void;
   onSetup: () => void;
@@ -19,26 +19,37 @@ interface Props {
 
 const SWIPE_THRESHOLD = 50;
 
+const slideVariants = {
+  enter: (dir: number) => ({ x: dir * 60, opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (dir: number) => ({ x: dir * -60, opacity: 0 }),
+};
+
+const slideTransition = { duration: 0.22, ease: "easeOut" };
+
 export default function TrainingDayCard({
   plan,
   nextDay,
   nextDayIndex,
-  nextDayTemplateName,
+  templates,
   lastCompletedDay,
   lastCompletedAt,
-  lastDayTemplateName,
   coachHint,
   onStart,
   onSetup,
 }: Props) {
   // previewIndex: currently displayed day; syncedFrom: the nextDayIndex it was last reset to.
-  // When nextDayIndex changes (e.g. after completing a workout), reset preview to the new real next day.
-  const [{ previewIndex, syncedFrom }, setPreviewState] = useState({
+  // direction: 1 = forward (left swipe), -1 = backward (right swipe), used for slide animation.
+  const [{ previewIndex, syncedFrom, direction }, setPreviewState] = useState({
     previewIndex: nextDayIndex ?? 0,
     syncedFrom: nextDayIndex,
+    direction: 1,
   });
+
+  // Derived-state reset: when nextDayIndex changes (e.g. after completing a workout),
+  // snap preview back to the real next day without an animation.
   if (syncedFrom !== nextDayIndex && nextDayIndex !== null) {
-    setPreviewState({ previewIndex: nextDayIndex, syncedFrom: nextDayIndex });
+    setPreviewState({ previewIndex: nextDayIndex, syncedFrom: nextDayIndex, direction: 1 });
   }
 
   const touchStartX = useRef<number | null>(null);
@@ -70,22 +81,28 @@ export default function TrainingDayCard({
     touchStartX.current = null;
     if (Math.abs(delta) < SWIPE_THRESHOLD) return;
     const n = plan.days.length;
+    const dir = delta < 0 ? 1 : -1;
     setPreviewState((s) => ({
-      ...s,
-      previewIndex: delta < 0 ? (s.previewIndex + 1) % n : (s.previewIndex - 1 + n) % n,
+      previewIndex: dir === 1 ? (s.previewIndex + 1) % n : (s.previewIndex - 1 + n) % n,
+      syncedFrom: s.syncedFrom,
+      direction: dir,
     }));
   };
+
+  const resolveTemplateName = (day: TrainingDay | null) =>
+    day?.templateId ? (templates.find((t) => t.id === day.templateId)?.name ?? day.label) : day?.label;
+
+  const previewTemplateName = resolveTemplateName(previewDay);
+  const lastDayTemplateName = resolveTemplateName(lastCompletedDay);
+
+  const displayLabel = previewDay
+    ? `Day ${previewDay.dayNumber}${previewTemplateName ? ` – ${previewTemplateName}` : ""}`
+    : null;
 
   const lastDate = lastCompletedAt
     ? new Date(lastCompletedAt).toLocaleDateString("en-GB", {
         weekday: "short", day: "numeric", month: "short",
       })
-    : null;
-
-  const displayLabel = previewDay
-    ? isRealNext
-      ? `Day ${previewDay.dayNumber}${nextDayTemplateName ? ` – ${nextDayTemplateName}` : ""}`
-      : `Day ${previewDay.dayNumber}${previewDay.label ? ` – ${previewDay.label}` : ""}`
     : null;
 
   return (
@@ -95,7 +112,7 @@ export default function TrainingDayCard({
       onTouchEnd={multiDay ? handleTouchEnd : undefined}
     >
       <div className="flex items-center justify-between gap-4">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-hidden">
           <div className="flex items-center gap-2 mb-1">
             <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
               {isRealNext ? "Next Up" : "Plan Day"}
@@ -106,15 +123,28 @@ export default function TrainingDayCard({
               </p>
             )}
           </div>
-          <p className="text-base font-black text-white truncate">
-            {displayLabel ?? "—"}
-          </p>
-          {lastCompletedDay && (
-            <p className="text-[11px] text-zinc-600 mt-0.5">
-              {`Last: Day ${lastCompletedDay.dayNumber}${lastDayTemplateName ? ` – ${lastDayTemplateName}` : ""}`}
-              {lastDate ? ` · ${lastDate}` : ""}
-            </p>
-          )}
+
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={previewIndex}
+              custom={direction}
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={slideTransition}
+            >
+              <p className="text-base font-black text-white truncate">
+                {displayLabel ?? "—"}
+              </p>
+              {lastCompletedDay && (
+                <p className="text-[11px] text-zinc-600 mt-0.5">
+                  {`Last: Day ${lastCompletedDay.dayNumber}${lastDayTemplateName ? ` – ${lastDayTemplateName}` : ""}`}
+                  {lastDate ? ` · ${lastDate}` : ""}
+                </p>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
