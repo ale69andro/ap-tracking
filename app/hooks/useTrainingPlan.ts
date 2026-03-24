@@ -27,6 +27,11 @@ async function upsertPlanToSupabase(
   plan: TrainingPlan | null,
   progress: TrainingProgress | null,
 ): Promise<void> {
+  console.log("[TrainingPlan] UPSERT payload:", {
+    userId,
+    training_plan:     plan,
+    training_progress: progress,
+  });
   const supabase = createClient();
   const { error } = await supabase
     .from("user_profiles")
@@ -34,12 +39,16 @@ async function upsertPlanToSupabase(
       { id: userId, training_plan: plan, training_progress: progress },
       { onConflict: "id" },
     );
-  if (error) console.error("Failed to save training plan:", {
-    message: error.message,
-    code:    error.code,
-    details: error.details,
-    hint:    error.hint,
-  });
+  if (error) {
+    console.error("[TrainingPlan] Supabase upsert error:", {
+      message: error.message,
+      code:    error.code,
+      details: error.details,
+      hint:    error.hint,
+    });
+  } else {
+    console.log("[TrainingPlan] Supabase plan saved successfully");
+  }
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -52,6 +61,8 @@ export function useTrainingPlan(userId: string | null) {
   // and migrate it once into Supabase so the user's existing plan is not lost.
   useEffect(() => {
     if (!userId) return;
+
+    console.log("[TrainingPlan] loading for user:", userId);
 
     const supabase = createClient();
     supabase
@@ -74,6 +85,11 @@ export function useTrainingPlan(userId: string | null) {
           return;
         }
 
+        console.log("[TrainingPlan] Supabase SELECT result:", {
+          training_plan:     data?.training_plan,
+          training_progress: data?.training_progress,
+        });
+
         const remotePlan     = (data?.training_plan     as TrainingPlan     | null) ?? null;
         const remoteProgress = (data?.training_progress as TrainingProgress | null) ?? null;
 
@@ -85,11 +101,14 @@ export function useTrainingPlan(userId: string | null) {
         }
 
         // Supabase has no plan yet — check localStorage for a one-time migration.
+        console.log("[TrainingPlan] localStorage plan:",     loadLocal(planKey(userId)));
+        console.log("[TrainingPlan] localStorage progress:", loadLocal(progressKey(userId)));
         const localPlan     = loadLocal<TrainingPlan>(planKey(userId));
         const localProgress = loadLocal<TrainingProgress>(progressKey(userId));
 
         if (localPlan !== null) {
           // Migrate local data into Supabase, then use it.
+          console.log("[TrainingPlan] migrating localStorage plan to Supabase");
           await upsertPlanToSupabase(userId, localPlan, localProgress);
         }
 
