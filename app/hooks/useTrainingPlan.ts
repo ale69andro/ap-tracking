@@ -34,7 +34,12 @@ async function upsertPlanToSupabase(
       { id: userId, training_plan: plan, training_progress: progress },
       { onConflict: "id" },
     );
-  if (error) console.error("Failed to save training plan:", error.message);
+  if (error) console.error("Failed to save training plan:", {
+    message: error.message,
+    code:    error.code,
+    details: error.details,
+    hint:    error.hint,
+  });
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -56,7 +61,16 @@ export function useTrainingPlan(userId: string | null) {
       .maybeSingle()
       .then(async ({ data, error }) => {
         if (error) {
-          console.error("Failed to load training plan:", error.message);
+          console.error("Failed to load training plan:", {
+            message: error.message,
+            code:    error.code,
+            details: error.details,
+            hint:    error.hint,
+          });
+          // Supabase unavailable or columns missing — fall back to localStorage
+          // so the user's plan is not lost while the database issue is resolved.
+          setPlanState(loadLocal<TrainingPlan>(planKey(userId)));
+          setProgressState(loadLocal<TrainingProgress>(progressKey(userId)));
           return;
         }
 
