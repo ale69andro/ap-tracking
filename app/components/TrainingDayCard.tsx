@@ -1,10 +1,11 @@
 "use client";
 
+import { useState, useRef } from "react";
 import type { TrainingDay } from "@/app/types";
 import { ChevronRight, ArrowRight } from "lucide-react";
 
 interface Props {
-  plan: { name: string } | null;
+  plan: { name: string; days: TrainingDay[] } | null;
   nextDay: TrainingDay | null;
   nextDayIndex: number | null;
   nextDayTemplateName?: string;
@@ -15,6 +16,8 @@ interface Props {
   onStart: (day: TrainingDay, dayIndex: number) => void;
   onSetup: () => void;
 }
+
+const SWIPE_THRESHOLD = 50;
 
 export default function TrainingDayCard({
   plan,
@@ -28,6 +31,18 @@ export default function TrainingDayCard({
   onStart,
   onSetup,
 }: Props) {
+  // previewIndex: currently displayed day; syncedFrom: the nextDayIndex it was last reset to.
+  // When nextDayIndex changes (e.g. after completing a workout), reset preview to the new real next day.
+  const [{ previewIndex, syncedFrom }, setPreviewState] = useState({
+    previewIndex: nextDayIndex ?? 0,
+    syncedFrom: nextDayIndex,
+  });
+  if (syncedFrom !== nextDayIndex && nextDayIndex !== null) {
+    setPreviewState({ previewIndex: nextDayIndex, syncedFrom: nextDayIndex });
+  }
+
+  const touchStartX = useRef<number | null>(null);
+
   // No plan — show setup prompt
   if (!plan) {
     return (
@@ -41,25 +56,58 @@ export default function TrainingDayCard({
     );
   }
 
+  const multiDay = plan.days.length > 1;
+  const previewDay = multiDay ? plan.days[previewIndex] : nextDay;
+  const isRealNext = !multiDay || previewIndex === nextDayIndex;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(delta) < SWIPE_THRESHOLD) return;
+    const n = plan.days.length;
+    setPreviewState((s) => ({
+      ...s,
+      previewIndex: delta < 0 ? (s.previewIndex + 1) % n : (s.previewIndex - 1 + n) % n,
+    }));
+  };
+
   const lastDate = lastCompletedAt
     ? new Date(lastCompletedAt).toLocaleDateString("en-GB", {
         weekday: "short", day: "numeric", month: "short",
       })
     : null;
 
-  const nextLabel = nextDay
-    ? `Day ${nextDay.dayNumber}${nextDayTemplateName ? ` – ${nextDayTemplateName}` : ""}`
+  const displayLabel = previewDay
+    ? isRealNext
+      ? `Day ${previewDay.dayNumber}${nextDayTemplateName ? ` – ${nextDayTemplateName}` : ""}`
+      : `Day ${previewDay.dayNumber}${previewDay.label ? ` – ${previewDay.label}` : ""}`
     : null;
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800/60 rounded-2xl px-4 py-3.5 mb-4">
+    <div
+      className="bg-zinc-900 border border-zinc-800/60 rounded-2xl px-4 py-3.5 mb-4"
+      onTouchStart={multiDay ? handleTouchStart : undefined}
+      onTouchEnd={multiDay ? handleTouchEnd : undefined}
+    >
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1">
-            Next Up
-          </p>
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
+              {isRealNext ? "Next Up" : "Plan Day"}
+            </p>
+            {multiDay && (
+              <p className="text-[10px] text-zinc-700">
+                {previewIndex + 1} / {plan.days.length}
+              </p>
+            )}
+          </div>
           <p className="text-base font-black text-white truncate">
-            {nextLabel ?? "—"}
+            {displayLabel ?? "—"}
           </p>
           {lastCompletedDay && (
             <p className="text-[11px] text-zinc-600 mt-0.5">
@@ -76,9 +124,9 @@ export default function TrainingDayCard({
           >
             Edit
           </button>
-          {nextDay && nextDayIndex !== null && (
+          {previewDay && (
             <button
-              onClick={() => onStart(nextDay, nextDayIndex)}
+              onClick={() => onStart(previewDay, previewIndex)}
               className="inline-flex items-center gap-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs font-black tracking-wider uppercase px-3 py-2 rounded-xl transition-colors"
             >
               Start <ArrowRight size={13} />
@@ -86,7 +134,7 @@ export default function TrainingDayCard({
           )}
         </div>
       </div>
-      {coachHint && (
+      {coachHint && isRealNext && (
         <p className="text-[11px] text-zinc-500 mt-2 pt-2 border-t border-zinc-800/60">
           <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
             Coach ·{" "}
