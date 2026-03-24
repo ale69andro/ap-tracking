@@ -25,7 +25,7 @@ const slideVariants = {
   exit: (dir: number) => ({ x: dir * -60, opacity: 0 }),
 };
 
-const slideTransition = { duration: 0.22, ease: "easeOut" };
+const slideTransition = { duration: 0.22, ease: "easeOut" } as const;
 
 export default function TrainingDayCard({
   plan,
