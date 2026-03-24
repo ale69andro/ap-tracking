@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TrainingPlan, TrainingProgress } from "@/app/types";
 
-// ─── localStorage helpers (kept for one-time migration read + legacy cleanup) ──
+// ─── localStorage helpers (one-time migration read + cleanup only) ────────────
 
 const planKey     = (uid: string) => `ap_training_plan_${uid}`;
 const progressKey = (uid: string) => `ap_training_progress_${uid}`;
@@ -27,11 +27,6 @@ async function upsertPlanToSupabase(
   plan: TrainingPlan | null,
   progress: TrainingProgress | null,
 ): Promise<void> {
-  console.log("[TrainingPlan] UPSERT payload:", {
-    userId,
-    training_plan:     plan,
-    training_progress: progress,
-  });
   const supabase = createClient();
   const { error } = await supabase
     .from("user_profiles")
@@ -39,16 +34,12 @@ async function upsertPlanToSupabase(
       { id: userId, training_plan: plan, training_progress: progress },
       { onConflict: "id" },
     );
-  if (error) {
-    console.error("[TrainingPlan] Supabase upsert error:", {
-      message: error.message,
-      code:    error.code,
-      details: error.details,
-      hint:    error.hint,
-    });
-  } else {
-    console.log("[TrainingPlan] Supabase plan saved successfully");
-  }
+  if (error) console.error("Failed to save training plan:", {
+    message: error.message,
+    code:    error.code,
+    details: error.details,
+    hint:    error.hint,
+  });
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -57,12 +48,18 @@ export function useTrainingPlan(userId: string | null) {
   const [plan,     setPlanState]     = useState<TrainingPlan | null>(null);
   const [progress, setProgressState] = useState<TrainingProgress | null>(null);
 
-  // Load from Supabase on mount. If Supabase has no plan yet, check localStorage
-  // and migrate it once into Supabase so the user's existing plan is not lost.
+  // Guards the one-time localStorage → Supabase migration so it runs at most
+  // once per session. Mirrors the migrationAttempted pattern in useTemplates.
+  const migrationAttempted = useRef(false);
+
+  // Load from Supabase on mount / userId change.
+  // If Supabase SELECT fails transiently, show any local plan as a graceful
+  // fallback without treating it as source of truth (migration will retry on
+  // the next successful load).
+  // If Supabase returns no plan, attempt a one-time migration from localStorage
+  // then clear the local keys so steady-state is Supabase-only.
   useEffect(() => {
     if (!userId) return;
-
-    console.log("[TrainingPlan] loading for user:", userId);
 
     const supabase = createClient();
     supabase
@@ -78,17 +75,17 @@ export function useTrainingPlan(userId: string | null) {
             details: error.details,
             hint:    error.hint,
           });
-          // Supabase unavailable or columns missing — fall back to localStorage
-          // so the user's plan is not lost while the database issue is resolved.
-          setPlanState(loadLocal<TrainingPlan>(planKey(userId)));
-          setProgressState(loadLocal<TrainingProgress>(progressKey(userId)));
+          // Transient failure — show local plan if available so the UI isn't
+          // blank. migrationAttempted stays false so migration retries next
+          // time a SELECT succeeds.
+          const localPlan     = loadLocal<TrainingPlan>(planKey(userId));
+          const localProgress = loadLocal<TrainingProgress>(progressKey(userId));
+          if (localPlan !== null) {
+            setPlanState(localPlan);
+            setProgressState(localProgress);
+          }
           return;
         }
-
-        console.log("[TrainingPlan] Supabase SELECT result:", {
-          training_plan:     data?.training_plan,
-          training_progress: data?.training_progress,
-        });
 
         const remotePlan     = (data?.training_plan     as TrainingPlan     | null) ?? null;
         const remoteProgress = (data?.training_progress as TrainingProgress | null) ?? null;
@@ -100,20 +97,24 @@ export function useTrainingPlan(userId: string | null) {
           return;
         }
 
-        // Supabase has no plan yet — check localStorage for a one-time migration.
-        console.log("[TrainingPlan] localStorage plan:",     loadLocal(planKey(userId)));
-        console.log("[TrainingPlan] localStorage progress:", loadLocal(progressKey(userId)));
-        const localPlan     = loadLocal<TrainingPlan>(planKey(userId));
-        const localProgress = loadLocal<TrainingProgress>(progressKey(userId));
+        // Supabase has no plan yet. Attempt one-time migration from localStorage.
+        if (!migrationAttempted.current) {
+          migrationAttempted.current = true;
 
-        if (localPlan !== null) {
-          // Migrate local data into Supabase, then use it.
-          console.log("[TrainingPlan] migrating localStorage plan to Supabase");
-          await upsertPlanToSupabase(userId, localPlan, localProgress);
+          const localPlan     = loadLocal<TrainingPlan>(planKey(userId));
+          const localProgress = loadLocal<TrainingProgress>(progressKey(userId));
+
+          if (localPlan !== null) {
+            await upsertPlanToSupabase(userId, localPlan, localProgress);
+            // Migration complete — clear localStorage so the next load reads
+            // purely from Supabase. Mirrors the cleanup pattern in useTemplates.
+            removeLocal(planKey(userId));
+            removeLocal(progressKey(userId));
+          }
+
+          setPlanState(localPlan);
+          setProgressState(localProgress);
         }
-
-        setPlanState(localPlan);
-        setProgressState(localProgress);
       });
   }, [userId]);
 
@@ -151,7 +152,7 @@ export function useTrainingPlan(userId: string | null) {
     setPlanState(null);
     setProgressState(null);
     upsertPlanToSupabase(userId, null, null);
-    // Clean up legacy localStorage keys.
+    // Clean up any remaining legacy localStorage keys.
     removeLocal(planKey(userId));
     removeLocal(progressKey(userId));
   }, [userId]);
