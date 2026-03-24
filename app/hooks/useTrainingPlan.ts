@@ -22,6 +22,8 @@ function removeLocal(key: string): void {
 
 // ─── Supabase helpers ─────────────────────────────────────────────────────────
 
+/** Throws on error so callers can gate side-effects (e.g. localStorage cleanup)
+ *  on confirmed persistence. */
 async function upsertPlanToSupabase(
   userId: string,
   plan: TrainingPlan | null,
@@ -34,12 +36,7 @@ async function upsertPlanToSupabase(
       { id: userId, training_plan: plan, training_progress: progress },
       { onConflict: "id" },
     );
-  if (error) console.error("Failed to save training plan:", {
-    message: error.message,
-    code:    error.code,
-    details: error.details,
-    hint:    error.hint,
-  });
+  if (error) throw error;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -56,8 +53,8 @@ export function useTrainingPlan(userId: string | null) {
   // If Supabase SELECT fails transiently, show any local plan as a graceful
   // fallback without treating it as source of truth (migration will retry on
   // the next successful load).
-  // If Supabase returns no plan, attempt a one-time migration from localStorage
-  // then clear the local keys so steady-state is Supabase-only.
+  // If Supabase returns no plan, attempt a one-time migration from localStorage.
+  // localStorage keys are only removed after a confirmed successful upsert.
   useEffect(() => {
     if (!userId) return;
 
@@ -105,11 +102,16 @@ export function useTrainingPlan(userId: string | null) {
           const localProgress = loadLocal<TrainingProgress>(progressKey(userId));
 
           if (localPlan !== null) {
-            await upsertPlanToSupabase(userId, localPlan, localProgress);
-            // Migration complete — clear localStorage so the next load reads
-            // purely from Supabase. Mirrors the cleanup pattern in useTemplates.
-            removeLocal(planKey(userId));
-            removeLocal(progressKey(userId));
+            try {
+              await upsertPlanToSupabase(userId, localPlan, localProgress);
+              // Only clear localStorage after confirmed persistence.
+              removeLocal(planKey(userId));
+              removeLocal(progressKey(userId));
+            } catch (err) {
+              console.error("TrainingPlan migration failed:", err);
+              // localStorage keys are intentionally preserved so migration can
+              // retry on the next successful load.
+            }
           }
 
           setPlanState(localPlan);
@@ -121,18 +123,18 @@ export function useTrainingPlan(userId: string | null) {
   /** Persist a new or updated plan. Resets progress if the plan ID changed. */
   const setPlan = useCallback((newPlan: TrainingPlan) => {
     if (!userId) return;
+
+    const nextProgress: TrainingProgress =
+      plan?.id === newPlan.id && progress !== null
+        ? progress
+        : { planId: newPlan.id, lastCompletedDayIndex: null, lastCompletedAt: null };
+
     setPlanState(newPlan);
-
-    setProgressState((prev) => {
-      const nextProgress: TrainingProgress =
-        prev?.planId === newPlan.id
-          ? prev
-          : { planId: newPlan.id, lastCompletedDayIndex: null, lastCompletedAt: null };
-
-      upsertPlanToSupabase(userId, newPlan, nextProgress);
-      return nextProgress;
-    });
-  }, [userId]);
+    setProgressState(nextProgress);
+    upsertPlanToSupabase(userId, newPlan, nextProgress).catch((err) =>
+      console.error("Failed to save training plan:", err),
+    );
+  }, [userId, plan, progress]);
 
   /** Mark a day (by 0-based index) as the most recently completed. */
   const markDayCompleted = useCallback((dayIndex: number) => {
@@ -143,7 +145,9 @@ export function useTrainingPlan(userId: string | null) {
       lastCompletedAt: Date.now(),
     };
     setProgressState(updated);
-    upsertPlanToSupabase(userId, plan, updated);
+    upsertPlanToSupabase(userId, plan, updated).catch((err) =>
+      console.error("Failed to save training progress:", err),
+    );
   }, [userId, plan]);
 
   /** Remove the plan and its progress entirely. */
@@ -151,7 +155,9 @@ export function useTrainingPlan(userId: string | null) {
     if (!userId) return;
     setPlanState(null);
     setProgressState(null);
-    upsertPlanToSupabase(userId, null, null);
+    upsertPlanToSupabase(userId, null, null).catch((err) =>
+      console.error("Failed to clear training plan:", err),
+    );
     // Clean up any remaining legacy localStorage keys.
     removeLocal(planKey(userId));
     removeLocal(progressKey(userId));
