@@ -1,10 +1,12 @@
-import type { WorkoutSession, ExerciseSet, SetType } from "@/app/types";
+import type { WorkoutSession, ExerciseSet } from "@/app/types";
 import { X } from "lucide-react";
 
 type HistorySession = {
   dateMs: number;
   workoutName: string;
-  sets: ExerciseSet[];
+  warmups: ExerciseSet[];
+  workingSets: ExerciseSet[];
+  dropSets: ExerciseSet[];
 };
 
 function normalizeDate(session: WorkoutSession): number {
@@ -27,27 +29,28 @@ function formatDate(ms: number): string {
   });
 }
 
-const SET_TYPE_CONFIG: Record<SetType, { label: (n: number) => string; className: string }> = {
-  "Normal":   { label: (n) => `Set ${n}`,  className: "text-zinc-500" },
-  "Warm-up":  { label: ()  => "Warm-up",   className: "text-amber-500 italic" },
-  "Drop Set": { label: ()  => "Drop",      className: "text-rose-400/70 italic" },
-};
-
 type Props = {
   name: string;
+  muscleGroups: string[];
   history: WorkoutSession[];
   onClose: () => void;
 };
 
-export default function ExerciseHistorySheet({ name, history, onClose }: Props) {
+export default function ExerciseHistorySheet({ name, muscleGroups, history, onClose }: Props) {
   const sessions: HistorySession[] = history
     .filter((w) => w.exercises.some((e) => e.exerciseName === name))
     .map((w) => {
       const ex = w.exercises.find((e) => e.exerciseName === name)!;
-      const sets = ex.sets.filter((s) => s.completed);
-      return { dateMs: normalizeDate(w), workoutName: w.name || "Workout", sets };
+      const completed = ex.sets.filter((s) => s.completed);
+      return {
+        dateMs:      normalizeDate(w),
+        workoutName: w.name || "Workout",
+        warmups:     completed.filter((s) => s.type === "Warm-up"),
+        workingSets: completed.filter((s) => s.type === "Normal"),
+        dropSets:    completed.filter((s) => s.type === "Drop Set"),
+      };
     })
-    .filter((s) => s.sets.length > 0)
+    .filter((s) => s.warmups.length + s.workingSets.length + s.dropSets.length > 0)
     .sort((a, b) => b.dateMs - a.dateMs);
 
   return (
@@ -66,7 +69,11 @@ export default function ExerciseHistorySheet({ name, history, onClose }: Props) 
         <div className="flex items-center justify-between px-5 pt-3 pb-4 border-b border-zinc-800 shrink-0">
           <div>
             <h2 className="text-lg font-black text-white">{name}</h2>
-            <p className="text-[11px] text-zinc-500 mt-0.5">Exercise History</p>
+            {muscleGroups.length > 0 ? (
+              <p className="text-[11px] text-zinc-500 mt-0.5">{muscleGroups.join(" · ")}</p>
+            ) : (
+              <p className="text-[11px] text-zinc-500 mt-0.5">Exercise History</p>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -77,36 +84,86 @@ export default function ExerciseHistorySheet({ name, history, onClose }: Props) 
         </div>
 
         {/* Session list */}
-        <div className="overflow-y-auto px-5 py-4 space-y-5 pb-8">
+        <div className="overflow-y-auto px-5 py-4 space-y-6 pb-8">
           {sessions.length === 0 ? (
             <p className="text-sm text-zinc-600 text-center py-8">No history found.</p>
           ) : (
-            sessions.map((session, i) => {
-              let workingSetCount = 0;
-              return (
-                <div key={i}>
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 mb-2">
-                    {formatDate(session.dateMs)}
-                    <span className="font-normal normal-case tracking-normal text-zinc-600"> · {session.workoutName}</span>
-                  </p>
-                  <div className="bg-zinc-800/50 rounded-xl px-4 py-3 space-y-2">
-                    {session.sets.map((set) => {
-                      const cfg = SET_TYPE_CONFIG[set.type] ?? SET_TYPE_CONFIG["Normal"];
-                      if (set.type === "Normal") workingSetCount += 1;
-                      const label = cfg.label(workingSetCount);
-                      return (
-                        <div key={set.id} className="flex justify-between text-xs">
-                          <span className={cfg.className}>{label}</span>
-                          <span className="font-semibold text-zinc-200 tabular-nums">
-                            {set.weight} kg × {set.reps} reps
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+            sessions.map((session, i) => (
+              <div key={i}>
+                {/* Session date + workout name */}
+                <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 mb-3">
+                  {formatDate(session.dateMs)}
+                  <span className="font-normal normal-case tracking-normal text-zinc-600"> · {session.workoutName}</span>
+                </p>
+
+                <div className="space-y-3">
+                  {/* Warm-up section */}
+                  {session.warmups.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1 px-1">Warm-up</p>
+                      <div className="space-y-1">
+                        {session.warmups.map((set) => (
+                          <div key={set.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-zinc-800/50">
+                            <span className="text-[11px] font-black text-amber-500 w-5 shrink-0 text-center">W</span>
+                            <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                              {set.weight || "—"}<span className="text-zinc-600 text-xs font-normal ml-0.5">kg</span>
+                            </span>
+                            <span className="text-zinc-700 text-xs">×</span>
+                            <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                              {set.reps || "—"}<span className="text-zinc-600 text-xs font-normal ml-0.5">reps</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Working sets section */}
+                  {session.workingSets.length > 0 && (
+                    <div>
+                      {session.warmups.length > 0 && (
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1 px-1">Working Sets</p>
+                      )}
+                      <div className="space-y-1">
+                        {session.workingSets.map((set, j) => (
+                          <div key={set.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-zinc-800/50">
+                            <span className="text-[11px] font-bold text-zinc-600 w-5 shrink-0 text-center">{j + 1}</span>
+                            <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                              {set.weight || "—"}<span className="text-zinc-600 text-xs font-normal ml-0.5">kg</span>
+                            </span>
+                            <span className="text-zinc-700 text-xs">×</span>
+                            <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                              {set.reps || "—"}<span className="text-zinc-600 text-xs font-normal ml-0.5">reps</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Drop sets section */}
+                  {session.dropSets.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1 px-1">Drop Sets</p>
+                      <div className="space-y-1">
+                        {session.dropSets.map((set) => (
+                          <div key={set.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-zinc-800/50">
+                            <span className="text-[11px] font-black text-rose-400 w-5 shrink-0 text-center">D</span>
+                            <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                              {set.weight || "—"}<span className="text-zinc-600 text-xs font-normal ml-0.5">kg</span>
+                            </span>
+                            <span className="text-zinc-700 text-xs">×</span>
+                            <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                              {set.reps || "—"}<span className="text-zinc-600 text-xs font-normal ml-0.5">reps</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              );
-            })
+              </div>
+            ))
           )}
         </div>
       </div>

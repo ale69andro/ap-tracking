@@ -202,6 +202,7 @@ export default function ExerciseDetailSheet({ progression, history, onClose }: P
     {showHistory && (
       <ExerciseHistorySheet
         name={name}
+        muscleGroups={muscleGroups}
         history={history}
         onClose={() => setShowHistory(false)}
       />
