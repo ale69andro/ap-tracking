@@ -1,5 +1,8 @@
 export type SetType = "Normal" | "Warm-up" | "Drop Set";
 
+/** Shared trend classification used across all analysis, UI, and recommendation layers. */
+export type ExerciseTrend = "up" | "flat" | "down" | "none" | "mixed";
+
 // ─── Core Entities ────────────────────────────────────────────────────────────
 
 export type ExerciseSet = {
@@ -155,7 +158,7 @@ export type ExerciseProgression = {
   muscleGroups: string[];
   bestWeight: number;
   recentSessions: ExerciseSession[];
-  trend: "up" | "flat" | "down" | "none";
+  trend: ExerciseTrend;
   trendScore: number;
   lastSeen: string;
   analysis?: ExerciseAnalysisResult;

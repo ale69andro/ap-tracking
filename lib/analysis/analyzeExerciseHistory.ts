@@ -141,13 +141,13 @@ export function analyzeExerciseHistory(
   const e1rmSeries = relevant.map((s) => calculateEpley1RM(s.topWeight, s.topReps));
   const interpretation = interpretProgression(e1rmSeries);
 
-  // Map to legacy trend format for computeNextTarget
-  const legacyTrend =
-    trend === "progressing" ? "up"
-    : trend === "regressing" ? "down"
-    : trend === "mixed" ? "flat"
-    : "flat";
-  const nextTarget = computeNextTarget(relevant, legacyTrend);
+  // Map analysis trend to ExerciseTrend for computeNextTarget
+  const trendKey =
+    trend === "progressing" ? "up"   as const
+    : trend === "regressing" ? "down" as const
+    : trend === "mixed"      ? "mixed" as const
+    : "flat" as const;
+  const nextTarget = computeNextTarget(relevant, trendKey);
 
   const suggestedRepRange = nextTarget
     ? nextTarget.repsMin === nextTarget.repsMax

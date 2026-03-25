@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ExerciseProgression, WorkoutSession } from "@/app/types";
+import type { ExerciseProgression, ExerciseTrend, WorkoutSession } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import { findBuiltIn } from "@/app/constants/exercises";
@@ -8,7 +8,7 @@ import SparkLine from "./SparkLine";
 import ExerciseHistorySheet from "./ExerciseHistorySheet";
 import { X } from "lucide-react";
 
-const TREND_CONFIG = {
+const TREND_CONFIG: Record<ExerciseTrend, { label: string; color: string; spark: string }> = {
   up:    { label: "Progressing",    color: "text-emerald-400", spark: "#10b981" },
   mixed: { label: "Mixed",          color: "text-amber-400",   spark: "#f59e0b" },
   flat:  { label: "Plateau",        color: "text-zinc-400",    spark: "#71717a" },
@@ -22,7 +22,7 @@ type Props = {
   onClose: () => void;
 };
 
-function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND_CONFIG {
+function resolvedTrendKey(p: ExerciseProgression): ExerciseTrend {
   const t = p.analysis?.trend;
   if (t === "progressing") return "up";
   if (t === "mixed")       return "mixed";

@@ -1,4 +1,4 @@
-import type { ExerciseSession, NextTarget } from "@/app/types";
+import type { ExerciseSession, ExerciseTrend, NextTarget } from "@/app/types";
 
 /** Standard smallest plate increment (kg). */
 const PLATE = 2.5;
@@ -36,7 +36,7 @@ export function countFlatSessions(sessions: ExerciseSession[]): number {
  */
 export function computeNextTarget(
   sessions: ExerciseSession[],
-  trend: "up" | "flat" | "down" | "none",
+  trend: ExerciseTrend,
 ): NextTarget | null {
   if (sessions.length === 0) return null;
 
@@ -82,6 +82,16 @@ export function computeNextTarget(
       repsMin: r,
       repsMax: r,
       note:    "Declining — reduce load, focus on form",
+    };
+  }
+
+  if (trend === "mixed") {
+    // Inconsistent results — repeat load, aim for more reps
+    return {
+      weight:  w,
+      repsMin: r,
+      repsMax: r + 2,
+      note:    "Mixed results — hold load, push for more reps",
     };
   }
 

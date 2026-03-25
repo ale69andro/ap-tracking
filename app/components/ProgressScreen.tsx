@@ -1,6 +1,6 @@
 "use client";
 
-import type { ExerciseProgression, ExerciseSession, UserProfile, TrainingDay, WorkoutTemplate } from "@/app/types";
+import type { ExerciseProgression, ExerciseSession, ExerciseTrend, UserProfile, TrainingDay, WorkoutTemplate } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import { getSmartRecommendation, computeMuscleGroupLoadMap } from "@/lib/analysis/smartCoach";
@@ -9,7 +9,7 @@ import { CoachLabel } from "./CoachLabel";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const TREND = {
+const TREND: Record<ExerciseTrend, { label: string; color: string; bg: string; spark: string; glow: string }> = {
   up:    { label: "Progressing", color: "text-emerald-300", bg: "bg-emerald-500/15 border-emerald-500/30", spark: "#10b981", glow: "#10b98126" },
   mixed: { label: "Mixed",       color: "text-amber-400",   bg: "bg-amber-500/15  border-amber-500/30",    spark: "#f59e0b", glow: "#f59e0b26" },
   flat:  { label: "Plateau",     color: "text-zinc-400",    bg: "bg-zinc-800/50   border-zinc-700/30",     spark: "#71717a", glow: "transparent" },
@@ -294,7 +294,7 @@ function FocusTodayCard({ p, onTap, profile, mgContext }: { p: ExerciseProgressi
 
 // ─── Exercise Progress Card ────────────────────────────────────────────────────
 
-function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND {
+function resolvedTrendKey(p: ExerciseProgression): ExerciseTrend {
   // Single session: no trend can be meaningfully established
   if (p.recentSessions.length < 2) return "none";
   const t = p.analysis?.trend;

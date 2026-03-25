@@ -1,8 +1,8 @@
-import type { ExerciseProgression, ExerciseSession } from "@/app/types";
+import type { ExerciseProgression, ExerciseSession, ExerciseTrend } from "@/app/types";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import SparkLine from "./SparkLine";
 
-const TREND_CONFIG = {
+const TREND_CONFIG: Record<ExerciseTrend, { label: string; color: string; bg: string; arrow: string; spark: string }> = {
   up:    { label: "Progressing",     color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", arrow: "↑", spark: "#10b981" },
   mixed: { label: "Mixed",           color: "text-amber-400",   bg: "bg-amber-500/10  border-amber-500/20",   arrow: "↕", spark: "#f59e0b" },
   flat:  { label: "Plateau",         color: "text-zinc-400",    bg: "bg-zinc-700/30 border-zinc-700/30",       arrow: "→", spark: "#71717a" },
@@ -41,7 +41,7 @@ type Props = {
   onTap: () => void;
 };
 
-function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND_CONFIG {
+function resolvedTrendKey(p: ExerciseProgression): ExerciseTrend {
   const t = p.analysis?.trend;
   if (t === "progressing") return "up";
   if (t === "mixed")       return "mixed";
