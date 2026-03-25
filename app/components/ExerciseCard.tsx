@@ -22,6 +22,7 @@ type Props = {
   onClearTimer: () => void;
   onAdjustTimer: (delta: number) => void;
   onExtendTimer: (seconds: number) => void;
+  onOpenDetail?: () => void;
   dragHandleProps?: HTMLAttributes<HTMLElement>;
 };
 
@@ -40,6 +41,7 @@ export default function ExerciseCard({
   onAdjustTimer,
   onExtendTimer,
   onUpdateExerciseRest,
+  onOpenDetail,
   dragHandleProps,
 }: Props) {
   const [showRest, setShowRest] = useState(false);
@@ -50,7 +52,16 @@ export default function ExerciseCard({
       {/* Exercise header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-4 border-b border-zinc-800/60">
         <div className="min-w-0">
-          <h3 className="text-sm font-bold text-white tracking-wide truncate">{exercise.exerciseName}</h3>
+          {onOpenDetail ? (
+            <button
+              onClick={onOpenDetail}
+              className="text-sm font-bold text-white tracking-wide truncate text-left px-1.5 py-0.5 -mx-1.5 rounded-md border border-transparent hover:border-zinc-700 hover:bg-zinc-800/40 active:scale-[0.98] active:bg-zinc-800/60 transition-colors transition-transform cursor-pointer"
+            >
+              {exercise.exerciseName}
+            </button>
+          ) : (
+            <h3 className="text-sm font-bold text-white tracking-wide truncate">{exercise.exerciseName}</h3>
+          )}
           {exercise.muscleGroups.length > 0 && (
             <p className="hidden sm:block text-[11px] text-zinc-600 mt-0.5 tracking-wide">
               {exercise.muscleGroups.join(" · ")}

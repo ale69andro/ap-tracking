@@ -91,6 +91,7 @@ type SortableExerciseCardProps = {
   onAdjustTimer: (delta: number) => void;
   onExtendTimer: (seconds: number) => void;
   onUpdateExerciseRest: (field: "warmupRestSeconds" | "workingRestSeconds", value: number) => void;
+  onOpenDetail?: () => void;
 };
 
 function SortableExerciseCard(props: SortableExerciseCardProps) {
@@ -678,6 +679,7 @@ export default function Home() {
                         onAdjustTimer={adjustTimer}
                         onExtendTimer={extendTimer}
                         onUpdateExerciseRest={(field, value) => updateExerciseRest(exercise.id, field, value)}
+                        onOpenDetail={prog ? () => setSelectedExercise(prog) : undefined}
                       />
                     );
                   })}
