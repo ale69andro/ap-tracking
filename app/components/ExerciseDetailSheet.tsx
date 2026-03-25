@@ -1,9 +1,11 @@
-import type { ExerciseProgression } from "@/app/types";
+import { useState } from "react";
+import type { ExerciseProgression, WorkoutSession } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import { findBuiltIn } from "@/app/constants/exercises";
 import { getExerciseAlternatives } from "@/lib/analysis/getExerciseAlternatives";
 import SparkLine from "./SparkLine";
+import ExerciseHistorySheet from "./ExerciseHistorySheet";
 import { X } from "lucide-react";
 
 const TREND_CONFIG = {
@@ -15,6 +17,7 @@ const TREND_CONFIG = {
 
 type Props = {
   progression: ExerciseProgression;
+  history: WorkoutSession[];
   onClose: () => void;
 };
 
@@ -25,7 +28,8 @@ function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND_CONFIG {
   return p.trend;
 }
 
-export default function ExerciseDetailSheet({ progression, onClose }: Props) {
+export default function ExerciseDetailSheet({ progression, history, onClose }: Props) {
+  const [showHistory, setShowHistory] = useState(false);
   const { name, muscleGroups, bestWeight, recentSessions, analysis } = progression;
 
   const builtIn     = findBuiltIn(name);
@@ -47,6 +51,7 @@ export default function ExerciseDetailSheet({ progression, onClose }: Props) {
   );
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -168,6 +173,14 @@ export default function ExerciseDetailSheet({ progression, onClose }: Props) {
             <p className="text-sm text-zinc-600 text-center py-4">No session data yet.</p>
           )}
 
+          {/* Exercise History entry point */}
+          <button
+            onClick={() => setShowHistory(true)}
+            className="w-full py-3 text-sm text-zinc-400 hover:text-zinc-200 active:text-white transition-colors text-center"
+          >
+            Exercise History →
+          </button>
+
           {/* Alternatives */}
           {alternatives.length > 0 && (
             <div>
@@ -185,5 +198,14 @@ export default function ExerciseDetailSheet({ progression, onClose }: Props) {
         </div>
       </div>
     </div>
+
+    {showHistory && (
+      <ExerciseHistorySheet
+        name={name}
+        history={history}
+        onClose={() => setShowHistory(false)}
+      />
+    )}
+    </>
   );
 }

@@ -8,7 +8,7 @@ const SET_TYPES: SetType[] = ["Normal", "Warm-up", "Drop Set"];
 
 const SET_TYPE_STYLES: Record<SetType, string> = {
   "Normal":   "text-zinc-500",
-  "Warm-up":  "text-amber-400",
+  "Warm-up":  "text-amber-500",
   "Drop Set": "text-red-400",
 };
 
@@ -23,6 +23,7 @@ type Props = {
   onDelete: () => void;
   onClearTimer: () => void;
   onAdjustTimer: (delta: number) => void;
+  onExtendTimer: (seconds: number) => void;
 };
 
 export default function SetRow({
@@ -36,11 +37,13 @@ export default function SetRow({
   onDelete,
   onClearTimer,
   onAdjustTimer,
+  onExtendTimer,
 }: Props) {
   const isTimerSet     = activeTimer?.setId === set.id;
   const timerRemaining = isTimerSet ? getTimerRemaining(activeTimer!) : 0;
   const timerDone      = isTimerSet && timerRemaining === 0;
-  const weightRef  = useRef<HTMLInputElement>(null);
+  const weightRef      = useRef<HTMLInputElement>(null);
+  const prevIsActiveRef = useRef(isActive);
   const [showControls, setShowControls] = useState(false);
 
   // ── Trash confirm state ─────────────────────────────────────────────────────
@@ -110,7 +113,8 @@ export default function SetRow({
   }, [swiping, swipeX, isTimerSet, onClearTimer, onDelete, resetSwipe]);
 
   useEffect(() => {
-    if (isActive) weightRef.current?.focus();
+    if (isActive && !prevIsActiveRef.current) weightRef.current?.focus();
+    prevIsActiveRef.current = isActive;
   }, [isActive]);
 
   const bump = (field: "weight" | "reps", delta: number) => {
@@ -147,7 +151,7 @@ export default function SetRow({
 
             /* ── Completed: compact single line ── */
             <div className="grid grid-cols-[2rem_1fr_1fr_5rem] items-center gap-2 px-2 py-3">
-              <span className={`text-[11px] font-black text-center leading-none ${set.type === "Warm-up" ? "text-amber-600" : "text-emerald-700"}`}>
+              <span className={`text-[11px] font-black text-center leading-none ${set.type === "Warm-up" ? "text-amber-500" : "text-emerald-700"}`}>
                 {set.type === "Warm-up" ? "W" : "✓"}
               </span>
               <span className="text-sm font-semibold text-zinc-600 tabular-nums text-center">
@@ -289,6 +293,7 @@ export default function SetRow({
           restedSeconds={timerDone ? activeTimer!.total : 0}
           onSkip={onClearTimer}
           onAdjust={onAdjustTimer}
+          onExtend={onExtendTimer}
         />
       )}
     </>

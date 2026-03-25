@@ -89,6 +89,7 @@ type SortableExerciseCardProps = {
   onUncompleteSet: (setId: string) => void;
   onClearTimer: () => void;
   onAdjustTimer: (delta: number) => void;
+  onExtendTimer: (seconds: number) => void;
   onUpdateExerciseRest: (field: "warmupRestSeconds" | "workingRestSeconds", value: number) => void;
 };
 
@@ -126,6 +127,7 @@ export default function Home() {
   const [planDraftDays, setPlanDraftDays]         = useState<TrainingDay[]>([]);
   const [pendingTemplateDayId, setPendingTemplateDayId] = useState<string | null>(null);
   const [coachTest, setCoachTest] = useState<CoachTestState>(COACH_TEST_INITIAL);
+  const [skippedSetsCount, setSkippedSetsCount] = useState(0);
 
   const { user, loading: authLoading, signOut } = useAuth();
   const userId = user?.id ?? null;
@@ -152,6 +154,7 @@ export default function Home() {
     renameWorkout,
     clearTimer,
     adjustTimer,
+    extendTimer,
     dismissSummary,
   } = useWorkout(userId, profile?.restTimerSound ?? false);
 
@@ -168,9 +171,19 @@ export default function Home() {
     !!completedSession
   );
 
+  // Scroll to top whenever a new workout is started.
+  // Runs after useScrollLock's cleanup (which restores the previous scroll position),
+  // so it always wins and the user lands at exercise 1.
+  useEffect(() => {
+    if (activeWorkout?.id) window.scrollTo(0, 0);
+  }, [activeWorkout?.id]);
+
   const workoutActive = activeWorkout !== null;
   useWakeLock(workoutActive && profile?.keepScreenOn !== false);
   const exercises     = activeWorkout?.exercises ?? [];
+  const incompleteSetsCount = activeWorkout?.exercises.reduce(
+    (n, ex) => n + ex.sets.filter((s) => !s.completed).length, 0
+  ) ?? 0;
 
   const exerciseDndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -257,6 +270,7 @@ export default function Home() {
     const template = day.templateId ? allTemplates.find((t) => t.id === day.templateId) : undefined;
     const name = template?.name ? `Day ${day.dayNumber} – ${template.name}` : `Day ${day.dayNumber}`;
     startWorkout(name, template?.id, template?.exercises, dayIndex);
+    setShowTrainingPlan(false);
   };
 
   /** Open the training plan sheet, initializing draft days from the current saved plan. */
@@ -313,8 +327,10 @@ export default function Home() {
   const handleConfirmExit = async () => {
     setConfirming(true);
     try {
-      if (pendingExit === "save") await saveWorkout();
-      else resetWorkout();
+      if (pendingExit === "save") {
+        const skipped = await saveWorkout();
+        setSkippedSetsCount(skipped ?? 0);
+      } else resetWorkout();
       setPendingExit(null);
     } finally {
       setConfirming(false);
@@ -346,7 +362,7 @@ export default function Home() {
         />
       )}
       {selectedExercise && (
-        <ExerciseDetailSheet progression={selectedExercise} onClose={() => setSelectedExercise(null)} />
+        <ExerciseDetailSheet progression={selectedExercise} history={history} onClose={() => setSelectedExercise(null)} />
       )}
       {showTemplates && (
         <TemplatesSheet
@@ -401,7 +417,13 @@ export default function Home() {
       {pendingExit && workoutActive && (
         <ConfirmModal
           title={pendingExit === "save" ? "Finish workout?" : "End workout?"}
-          description={pendingExit === "save" ? "Your workout will be saved." : "Your progress will be lost."}
+          description={
+            pendingExit === "save" && incompleteSetsCount > 0
+              ? `You still have ${incompleteSetsCount} incomplete ${incompleteSetsCount === 1 ? "set" : "sets"}. These sets will not be saved. Do you still want to finish?`
+              : pendingExit === "save"
+              ? "Your workout will be saved."
+              : "Your progress will be lost."
+          }
           confirmLabel={pendingExit === "save" ? "Finish workout" : "End workout"}
           cancelLabel="Stay"
           loadingLabel={pendingExit === "save" ? "Saving..." : "Ending..."}
@@ -413,7 +435,7 @@ export default function Home() {
 
       {completedSession && (
         <div className="fixed inset-0 z-50 bg-zinc-950 overflow-y-auto">
-          <WorkoutSummaryScreen session={completedSession} onDone={dismissSummary} />
+          <WorkoutSummaryScreen session={completedSession} onDone={dismissSummary} skippedSets={skippedSetsCount} />
         </div>
       )}
 
@@ -654,6 +676,7 @@ export default function Home() {
                         onUncompleteSet={(setId) => uncompleteSet(exercise.id, setId)}
                         onClearTimer={clearTimer}
                         onAdjustTimer={adjustTimer}
+                        onExtendTimer={extendTimer}
                         onUpdateExerciseRest={(field, value) => updateExerciseRest(exercise.id, field, value)}
                       />
                     );

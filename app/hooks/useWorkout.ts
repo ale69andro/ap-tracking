@@ -129,13 +129,16 @@ function rowToSession(row: SessionRow): WorkoutSession {
   };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (v?: string): v is string => !!v && UUID_RE.test(v);
+
 function sessionToRow(session: WorkoutSession, userId: string) {
   return {
     id:               session.id,
     user_id:          userId,
     name:             session.name,
     status:           session.status,
-    template_id:      session.templateId ?? null,
+    template_id:      isUuid(session.templateId) ? session.templateId : null,
     started_at:       session.startedAt ? new Date(session.startedAt).toISOString() : null,
     ended_at:         session.endedAt ? new Date(session.endedAt).toISOString() : null,
     duration_seconds: session.durationSeconds ?? null,
@@ -272,6 +275,19 @@ export function useWorkout(userId: string | null, restTimerSound = false) {
       const elapsed = Date.now() - prev.startedAt;
       const newDurationMs = Math.max(elapsed, prev.durationMs + deltaSeconds * 1000);
       return { ...prev, durationMs: newDurationMs, total: newDurationMs / 1000 };
+    });
+  };
+
+  // Extends a finished (Ready) timer by a fixed number of seconds from now.
+  // Uses elapsed + seconds so remaining = seconds exactly, regardless of how
+  // long ago the timer reached zero. The existing interval effect restarts
+  // automatically because activeTimer reference changes.
+  const extendTimer = (seconds: number) => {
+    setActiveTimer((prev) => {
+      if (!prev) return prev;
+      const elapsed = Date.now() - prev.startedAt;
+      const newDurationMs = elapsed + seconds * 1000;
+      return { ...prev, durationMs: newDurationMs, total: seconds };
     });
   };
 
@@ -458,13 +474,21 @@ export function useWorkout(userId: string | null, restTimerSound = false) {
 
   // ── Save / Reset ─────────────────────────────────────────────────────────
 
-  const saveWorkout = async () => {
-    if (!activeWorkout || !userId || activeWorkout.exercises.length === 0) return;
+  const saveWorkout = async (): Promise<number> => {
+    if (!activeWorkout || !userId || activeWorkout.exercises.length === 0) return 0;
     clearTimer();
+
+    let skippedSets = 0;
+    const filteredExercises = activeWorkout.exercises.map((ex) => {
+      const validSets = ex.sets.filter((s) => s.completed);
+      skippedSets += ex.sets.length - validSets.length;
+      return { ...ex, sets: validSets };
+    });
 
     const now = Date.now();
     const session: WorkoutSession = {
       ...activeWorkout,
+      exercises:       filteredExercises,
       status:          "completed",
       endedAt:         now,
       durationSeconds: Math.round((now - activeWorkout.startedAt) / 1000),
@@ -477,12 +501,13 @@ export function useWorkout(userId: string | null, restTimerSound = false) {
 
     if (error) {
       console.error("Failed to save workout:", error);
-      return;
+      return 0;
     }
 
     setHistory((prev) => [session, ...prev]);
     setActiveWorkout(null);
     setCompletedSession(session);
+    return skippedSets;
   };
 
   const dismissSummary = () => setCompletedSession(null);
@@ -530,6 +555,7 @@ export function useWorkout(userId: string | null, restTimerSound = false) {
     renameWorkout,
     clearTimer,
     adjustTimer,
+    extendTimer,
     dismissSummary,
   };
 }

@@ -7,6 +7,7 @@ import { computeWorkoutHighlight, getEffectiveSets } from "@/app/lib/workout";
 type Props = {
   session: WorkoutSession;
   onDone: () => void;
+  skippedSets?: number;
 };
 
 function formatDuration(seconds?: number): string {
@@ -24,7 +25,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function WorkoutSummaryScreen({ session, onDone }: Props) {
+export default function WorkoutSummaryScreen({ session, onDone, skippedSets = 0 }: Props) {
   const totalSets = session.exercises.reduce((n, e) => n + getEffectiveSets(e.sets).length, 0);
   const totalVolume = session.exercises.reduce(
     (sum, e) =>
@@ -54,13 +55,20 @@ export default function WorkoutSummaryScreen({ session, onDone }: Props) {
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3 mb-6">
         <StatCard label="Duration"    value={formatDuration(session.durationSeconds)} />
-        <StatCard label="Exercises"   value={String(session.exercises.length)} />
+        <StatCard label="Exercises"   value={String(session.exercises.filter(e => e.sets.length > 0).length)} />
         <StatCard label="Total Sets"  value={String(totalSets)} />
         <StatCard
           label="Total Volume"
           value={totalVolume > 0 ? `${Math.round(totalVolume).toLocaleString()} kg` : "—"}
         />
       </div>
+
+      {/* Skipped sets notice */}
+      {skippedSets > 0 && (
+        <p className="text-xs text-zinc-500 mb-6 -mt-2">
+          {skippedSets} incomplete {skippedSets === 1 ? "set was" : "sets were"} skipped
+        </p>
+      )}
 
       {/* Workout highlight */}
       {highlight ? (

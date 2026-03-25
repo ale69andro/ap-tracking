@@ -146,7 +146,7 @@ export default function WorkoutDetailSheet({ workout, onClose, onDelete }: Props
                     <div className="space-y-1">
                       {warmups.map((set) => (
                         <div key={set.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-zinc-800/50">
-                          <span className="text-[11px] font-black text-amber-600 w-5 shrink-0 text-center">W</span>
+                          <span className="text-[11px] font-black text-amber-500 w-5 shrink-0 text-center">W</span>
                           <span className="text-sm font-semibold text-zinc-200 tabular-nums">
                             {set.weight || "—"}
                             <span className="text-zinc-600 text-xs font-normal ml-0.5">kg</span>

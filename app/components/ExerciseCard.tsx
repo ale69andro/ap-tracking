@@ -3,6 +3,7 @@ import type { HTMLAttributes } from "react";
 import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression } from "@/app/types";
 import SetRow from "./SetRow";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
+import { CoachLabel } from "./CoachLabel";
 import { GripVertical, Trash2, ChevronUp, ChevronDown, Plus } from "lucide-react";
 
 type Props = {
@@ -20,6 +21,7 @@ type Props = {
   onUncompleteSet: (setId: string) => void;
   onClearTimer: () => void;
   onAdjustTimer: (delta: number) => void;
+  onExtendTimer: (seconds: number) => void;
   dragHandleProps?: HTMLAttributes<HTMLElement>;
 };
 
@@ -36,6 +38,7 @@ export default function ExerciseCard({
   onUncompleteSet,
   onClearTimer,
   onAdjustTimer,
+  onExtendTimer,
   onUpdateExerciseRest,
   dragHandleProps,
 }: Props) {
@@ -103,7 +106,7 @@ export default function ExerciseCard({
             )}
             {targets.target && (targets.target.weight != null || targets.target.repRange != null) && (
               <div className="pt-1">
-                <p className="text-[9px] text-zinc-600 uppercase tracking-widest font-semibold">Coach</p>
+                <CoachLabel />
                 <p className="text-[13px] font-bold text-white tabular-nums leading-tight">
                   {targets.target.weight != null ? `${targets.target.weight} kg` : ""}
                   {targets.target.weight != null && targets.target.repRange ? " × " : ""}
@@ -145,6 +148,7 @@ export default function ExerciseCard({
                   onDelete={() => onDeleteSet(set.id)}
                   onClearTimer={onClearTimer}
                   onAdjustTimer={onAdjustTimer}
+                  onExtendTimer={onExtendTimer}
                 />
               );
             });

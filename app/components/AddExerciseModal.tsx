@@ -6,6 +6,7 @@ import type { LibraryExercise, ExerciseProgression, Equipment } from "@/app/type
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
 import type { ExerciseTargets } from "@/lib/analysis/getExerciseTargets";
 import { X } from "lucide-react";
+import { CoachLabel } from "./CoachLabel";
 
 type Props = {
   userExercises: LibraryExercise[];
@@ -90,7 +91,6 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
     );
 
   const handleAddCustom = async () => {
-    console.log("🔥 CUSTOM BUTTON CLICKED");
     const name = customName.trim();
     if (!name || saving) return;
     setSaving(true);
@@ -207,11 +207,14 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
                             </p>
                           )}
                           {targets?.target && (targets.target.weight != null || targets.target.repRange != null) && (
-                            <p className="text-[11px] text-red-500/80 tabular-nums">
-                              Coach · {targets.target.weight != null ? `${targets.target.weight} kg` : ""}
-                              {targets.target.weight != null && targets.target.repRange ? " × " : ""}
-                              {targets.target.repRange ?? ""}
-                            </p>
+                            <div className="mt-0.5">
+                              <CoachLabel />
+                              <p className="text-[11px] text-white tabular-nums leading-tight">
+                                {targets.target.weight != null ? `${targets.target.weight} kg` : ""}
+                                {targets.target.weight != null && targets.target.repRange ? " × " : ""}
+                                {targets.target.repRange ?? ""}
+                              </p>
+                            </div>
                           )}
                         </div>
                         <span className={`font-black text-base ml-3 shrink-0 ${isSelected ? "text-red-500" : "text-zinc-700"}`}>
@@ -223,14 +226,15 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
                 </div>
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-zinc-900 to-transparent" />
               </div>
-              {selectedNames.length > 0 && (
-                <button
-                  onClick={handleConfirm}
-                  className="mt-3 w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-colors"
-                >
-                  Add {selectedNames.length} Exercise{selectedNames.length !== 1 ? "s" : ""}
-                </button>
-              )}
+              <button
+                onClick={handleConfirm}
+                disabled={selectedNames.length === 0}
+                className="mt-3 w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:pointer-events-none text-white font-bold text-sm transition-colors"
+              >
+                {selectedNames.length > 0
+                  ? `Add ${selectedNames.length} Exercise${selectedNames.length !== 1 ? "s" : ""}`
+                  : "Add Exercise"}
+              </button>
             </div>
           ) : (
             <div className="space-y-4">

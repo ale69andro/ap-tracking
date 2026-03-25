@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { TrainingDay, WorkoutTemplate } from "@/app/types";
 import { ChevronRight, ArrowRight } from "lucide-react";
+import { CoachLabel } from "./CoachLabel";
 
 interface Props {
   plan: { name: string; days: TrainingDay[] } | null;
@@ -165,12 +166,10 @@ export default function TrainingDayCard({
         </div>
       </div>
       {coachHint && isRealNext && (
-        <p className="text-[11px] text-zinc-500 mt-2 pt-2 border-t border-zinc-800/60">
-          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
-            Coach ·{" "}
-          </span>
-          {coachHint}
-        </p>
+        <div className="mt-2 pt-2 border-t border-zinc-800/60">
+          <CoachLabel />
+          <p className="text-[11px] text-zinc-500">{coachHint}</p>
+        </div>
       )}
     </div>
   );

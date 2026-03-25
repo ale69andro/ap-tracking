@@ -488,27 +488,30 @@ export default function TemplatesSheet({
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-2 pb-4 border-b border-zinc-800">
-          {mode !== "list" ? (
+        <div className="relative flex items-center justify-between px-5 pt-2 pb-4 border-b border-zinc-800">
+          {mode === "list" ? (
+            <h2 className="text-base font-black text-white">Templates</h2>
+          ) : mode === "build" ? (
             <button
-              onClick={mode === "pick" ? () => { setMultiSelectedNames([]); setMode("build"); } : resetToList}
+              onClick={resetToList}
               className="inline-flex items-center gap-1 text-sm font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
             >
               <ChevronLeft size={16} /> Back
             </button>
           ) : (
-            <h2 className="text-base font-black text-white">Templates</h2>
+            <div />
+          )}
+
+          {mode === "pick" && (
+            <span className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-white pointer-events-none">
+              {pickTarget === "new" ? "Add Exercise" : "Change Exercise"}
+            </span>
           )}
 
           <div className="flex items-center gap-2">
             {mode === "build" && draftExercises.length > 0 && (
               <span className="text-[11px] text-zinc-600">
                 {draftExercises.length} exercise{draftExercises.length !== 1 ? "s" : ""}
-              </span>
-            )}
-            {mode === "pick" && (
-              <span className="text-[11px] font-semibold text-zinc-500">
-                {pickTarget === "new" ? "Add Exercise" : "Change Exercise"}
               </span>
             )}
             <button
@@ -699,27 +702,26 @@ export default function TemplatesSheet({
 
                 {/* Exercise list */}
                 <div className="relative">
-                  <div className="space-y-0.5">
+                  <div className="max-h-64 overflow-y-auto space-y-0.5">
                     {filteredExercises.length === 0 ? (
                       <p className="text-zinc-600 text-sm text-center py-6">No exercises found.</p>
                     ) : (
                       filteredExercises.map((ex) => {
-                        const isMultiMode = pickTarget === "new";
                         const isSelected = multiSelectedNames.includes(ex.name);
                         return (
                           <button
                             key={ex.name}
                             onClick={() =>
-                              isMultiMode
+                              pickTarget === "new"
                                 ? setMultiSelectedNames((prev) =>
                                     prev.includes(ex.name)
                                       ? prev.filter((n) => n !== ex.name)
                                       : [...prev, ex.name]
                                   )
-                                : handlePickExercise(ex.name, ex.muscleGroups)
+                                : setMultiSelectedNames([ex.name])
                             }
                             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${
-                              isMultiMode && isSelected ? "bg-zinc-800 ring-1 ring-red-600/30" : "hover:bg-zinc-800"
+                              isSelected ? "bg-zinc-800 ring-1 ring-red-600/30" : "hover:bg-zinc-800"
                             }`}
                           >
                             <div className="text-left min-w-0">
@@ -731,8 +733,8 @@ export default function TemplatesSheet({
                                 )}
                               </p>
                             </div>
-                            <span className={`shrink-0 ml-3 font-black text-base ${isMultiMode && isSelected ? "text-red-500" : "text-zinc-700"}`}>
-                              {isMultiMode && isSelected ? "✓" : "+"}
+                            <span className={`shrink-0 ml-3 font-black text-base ${isSelected ? "text-red-500" : "text-zinc-700"}`}>
+                              {isSelected ? "✓" : "+"}
                             </span>
                           </button>
                         );
@@ -741,14 +743,27 @@ export default function TemplatesSheet({
                   </div>
                   <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-zinc-900 to-transparent" />
                 </div>
-                {pickTarget === "new" && multiSelectedNames.length > 0 && (
-                  <button
-                    onClick={handleConfirmMultiPick}
-                    className="mt-3 w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-colors"
-                  >
-                    Add {multiSelectedNames.length} Exercise{multiSelectedNames.length !== 1 ? "s" : ""}
-                  </button>
-                )}
+                <button
+                  disabled={multiSelectedNames.length === 0}
+                  onClick={() => {
+                    if (pickTarget === "new") {
+                      handleConfirmMultiPick();
+                    } else {
+                      const builtInNames = new Set(LIBRARY.map((e) => e.name.toLowerCase()));
+                      const merged = [...LIBRARY, ...userExercises.filter((e) => !builtInNames.has(e.name.toLowerCase()))];
+                      const sel = merged.find((e) => e.name === multiSelectedNames[0]);
+                      if (sel) handlePickExercise(sel.name, sel.muscleGroups);
+                    }
+                  }}
+                  className="mt-3 w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:pointer-events-none text-white font-bold text-sm transition-colors"
+                >
+                  {pickTarget === "new"
+                    ? multiSelectedNames.length > 0
+                      ? `Add ${multiSelectedNames.length} Exercise${multiSelectedNames.length !== 1 ? "s" : ""}`
+                      : "Add Exercise"
+                    : "Change Exercise"
+                  }
+                </button>
               </div>
             ) : (
               <div className="px-5 pt-4 pb-8 space-y-4">

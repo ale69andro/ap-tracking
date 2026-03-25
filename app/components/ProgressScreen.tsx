@@ -5,6 +5,7 @@ import { computeNextTarget } from "@/app/lib/recommendations";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import { getSmartRecommendation, computeMuscleGroupLoadMap } from "@/lib/analysis/smartCoach";
 import SparkLine from "./SparkLine";
+import { CoachLabel } from "./CoachLabel";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -227,7 +228,7 @@ function CoachBlock({ text, accentColor }: { text: string; accentColor: string }
       className="mt-3 bg-zinc-800/60 rounded-xl px-3.5 py-2.5"
       style={{ borderLeft: `2px solid ${accentColor}60` }}
     >
-      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">Coach</p>
+      <CoachLabel />
       <p className="text-[13px] font-semibold text-white leading-snug">{text}</p>
     </div>
   );
