@@ -159,7 +159,11 @@ const ACTIVE_KEY = "ap_active_workout";
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useWorkout(userId: string | null, restTimerSound = false) {
+export function useWorkout(
+  userId: string | null,
+  restTimerSound = false,
+  onSaveSuccess?: (workout: WorkoutSession) => void,
+) {
   // Active workout: per-device in localStorage, tagged with userId for safety.
   // We load eagerly (sync) to avoid a flash, then validate userId in an effect.
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(() => {
@@ -507,6 +511,7 @@ export function useWorkout(userId: string | null, restTimerSound = false) {
     setHistory((prev) => [session, ...prev]);
     setActiveWorkout(null);
     setCompletedSession(session);
+    onSaveSuccess?.(session);
     return skippedSets;
   };
 

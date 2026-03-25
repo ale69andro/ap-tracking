@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -15,7 +15,9 @@ import HistoryScreen from "./components/HistoryScreen";
 import ProgressScreen from "./components/ProgressScreen";
 import ProfileSetupScreen from "./components/ProfileSetupScreen";
 import ProfileEditSheet from "./components/ProfileEditSheet";
+import LevelBadge from "./components/LevelBadge";
 import { useWorkout, getSessionDate } from "./hooks/useWorkout";
+import { useXp } from "./hooks/useXp";
 import { useProfile } from "./hooks/useProfile";
 import { getEffectiveSets } from "./lib/workout";
 import { useProgression } from "./hooks/useProgression";
@@ -35,7 +37,7 @@ import { COACH_TEST_SCENARIOS, COACH_TEST_INITIAL } from "./constants/coachTestS
 import type { CoachTestState } from "./constants/coachTestScenarios";
 import CoachTestPanel from "./components/CoachTestPanel";
 import { PRESET_TEMPLATES } from "./constants/presetTemplates";
-import type { Equipment, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate } from "./types";
+import type { Equipment, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate, XpEventType } from "./types";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 import { useEffect } from "react";
 import { ChevronRight, Plus as LucidePlus } from "lucide-react";
@@ -135,6 +137,27 @@ export default function Home() {
   const { profile, loading: profileLoading, saveProfile } = useProfile(userId);
 
   const {
+    totalXp,
+    level,
+    currentStreak,
+    longestStreak,
+    hasCheckedInToday,
+    hasCompletedWorkoutToday,
+    awardXp,
+  } = useXp(userId ?? null);
+
+  // Daily login XP — fires once per user session (idempotent on server side)
+  useEffect(() => {
+    if (!userId) return;
+    void awardXp("daily_login");
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stable ref so useWorkout always has a callback without history being needed yet.
+  const onSaveSuccessRef = useRef<(savedWorkout: WorkoutSession) => Promise<void>>(
+    async () => {},
+  );
+
+  const {
     activeWorkout,
     completedSession,
     history,
@@ -157,7 +180,35 @@ export default function Home() {
     adjustTimer,
     extendTimer,
     dismissSummary,
-  } = useWorkout(userId, profile?.restTimerSound ?? false);
+  } = useWorkout(userId, profile?.restTimerSound ?? false, (w) => onSaveSuccessRef.current(w));
+
+  // onSaveSuccess: award XP after a workout is saved.
+  // Defined here so it can safely reference `history` (from useWorkout above).
+  const onSaveSuccess = useCallback(
+    async (savedWorkout: WorkoutSession) => {
+      await awardXp("workout_completed" as XpEventType);
+      // PR check — load PR signal only (topWeight this session > bestWeight in history)
+      for (const exercise of savedWorkout.exercises) {
+        const completedSets = exercise.sets.filter((s) => s.completed);
+        if (completedSets.length === 0) continue;
+        const topWeightThisSession = Math.max(
+          ...completedSets.map((s) => parseFloat(s.weight) || 0),
+        );
+        const historicalBest = history
+          .filter((w) => w.id !== savedWorkout.id)
+          .flatMap((w) => w.exercises)
+          .filter((e) => e.exerciseName === exercise.exerciseName)
+          .flatMap((e) => e.sets.filter((s) => s.completed))
+          .reduce((best, s) => Math.max(best, parseFloat(s.weight) || 0), 0);
+        if (historicalBest > 0 && topWeightThisSession > historicalBest) {
+          await awardXp("pr_achieved" as XpEventType, { exercise: exercise.exerciseName });
+          break;
+        }
+      }
+    },
+    [awardXp, history],
+  );
+  onSaveSuccessRef.current = onSaveSuccess;
 
   // Lock body scroll whenever any sheet or modal overlay is visible.
   // Must be after useWorkout so completedSession is initialised.
@@ -383,6 +434,9 @@ export default function Home() {
           onSave={saveProfile}
           onSignOut={signOut}
           onClose={() => setShowProfileSheet(false)}
+          totalXp={totalXp}
+          currentStreak={currentStreak}
+          longestStreak={longestStreak}
         />
       )}
 
@@ -516,12 +570,15 @@ export default function Home() {
                   Dashboard
                 </h1>
               </div>
-              <button
-                onClick={() => setShowProfileSheet(true)}
-                className="w-9 h-9 rounded-full bg-zinc-800 ring-1 ring-zinc-700 flex items-center justify-center text-sm font-black text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors mt-1"
-              >
-                {user?.email?.[0]?.toUpperCase() ?? "?"}
-              </button>
+              <div className="flex items-center gap-2 mt-1">
+                <LevelBadge level={level} onClick={() => setShowProfileSheet(true)} />
+                <button
+                  onClick={() => setShowProfileSheet(true)}
+                  className="w-9 h-9 rounded-full bg-zinc-800 ring-1 ring-zinc-700 flex items-center justify-center text-sm font-black text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
+                >
+                  {user?.email?.[0]?.toUpperCase() ?? "?"}
+                </button>
+              </div>
             </header>
 
             <button
@@ -540,6 +597,15 @@ export default function Home() {
                 {templates.length > 0 ? `${templates.length} saved` : "Create one"} <ChevronRight size={13} />
               </span>
             </button>
+
+            {!hasCompletedWorkoutToday && !hasCheckedInToday && (
+              <button
+                onClick={() => void awardXp("rest_day_check_in")}
+                className="w-full flex items-center justify-center border border-zinc-700 rounded-2xl px-4 py-3 mb-4 hover:border-zinc-600 transition-colors text-sm font-semibold text-zinc-300"
+              >
+                Rest Day Check-in
+              </button>
+            )}
 
             <TrainingDayCard
               plan={trainingPlan}

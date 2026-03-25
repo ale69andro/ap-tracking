@@ -261,3 +261,30 @@ export type TrainingProgress = {
 // ─── Backward-compat alias ────────────────────────────────────────────────────
 
 export type Workout = WorkoutSession;
+
+// ─── XP / Level / Streak ──────────────────────────────────────────────────────
+
+export type XpEventType =
+  | "daily_login"
+  | "rest_day_check_in"
+  | "workout_completed"
+  | "pr_achieved"
+  | "streak_extended";
+
+export interface UserProgression {
+  userId: string;
+  totalXp: number;
+  currentStreak: number;
+  longestStreak: number;
+  lastCheckInDate: string | null;
+}
+
+export interface XpEvent {
+  id: string;
+  userId: string;
+  eventType: XpEventType;
+  xpAmount: number;
+  eventDate: string;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { UserProfile } from "@/app/types";
 import { X, ChevronRight, ChevronLeft } from "lucide-react";
+import ProfileProgressionSection from "./ProfileProgressionSection";
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
@@ -94,12 +95,15 @@ function isValid(f: FormState): boolean {
 
 type Props = {
   profile: UserProfile;
-  onSave:    (profile: UserProfile) => Promise<void>;
-  onSignOut: () => void;
-  onClose:   () => void;
+  onSave:        (profile: UserProfile) => Promise<void>;
+  onSignOut:     () => void;
+  onClose:       () => void;
+  totalXp:       number;
+  currentStreak: number;
+  longestStreak: number;
 };
 
-export default function ProfileEditSheet({ profile, onSave, onSignOut, onClose }: Props) {
+export default function ProfileEditSheet({ profile, onSave, onSignOut, onClose, totalXp, currentStreak, longestStreak }: Props) {
   const [form, setForm]             = useState<FormState>(() => profileToForm(profile));
   const [saving, setSaving]         = useState(false);
   const [activeSection, setSection] = useState<Section | null>(null);
@@ -302,6 +306,14 @@ export default function ProfileEditSheet({ profile, onSave, onSignOut, onClose }
         {activeSection === null ? (
           /* ── Overview ──────────────────────────────────────────────── */
           <div className="overflow-y-auto px-5 pt-5 pb-8 space-y-2">
+            <ProfileProgressionSection
+              totalXp={totalXp}
+              currentStreak={currentStreak}
+              longestStreak={longestStreak}
+            />
+
+            <div className="border-t border-zinc-800 my-4" />
+
             <SectionRow label="Training" summary={trainingprofilSum(form)}  onClick={() => setSection("trainingsprofil")} />
             <SectionRow label="Settings" summary={einstellungenSum(form)}   onClick={() => setSection("einstellungen")}  />
 
