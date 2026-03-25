@@ -3,10 +3,11 @@ import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import SparkLine from "./SparkLine";
 
 const TREND_CONFIG = {
-  up:   { label: "Progressing",     color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", arrow: "↑", spark: "#10b981" },
-  flat: { label: "Plateau",         color: "text-zinc-400",    bg: "bg-zinc-700/30 border-zinc-700/30",       arrow: "→", spark: "#71717a" },
-  down: { label: "Declining",       color: "text-red-400",     bg: "bg-red-500/10 border-red-500/20",         arrow: "↓", spark: "#f87171" },
-  none: { label: "Not enough data", color: "text-zinc-600",    bg: "bg-zinc-800/50 border-zinc-700/40",       arrow: "·", spark: "#52525b" },
+  up:    { label: "Progressing",     color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", arrow: "↑", spark: "#10b981" },
+  mixed: { label: "Mixed",           color: "text-amber-400",   bg: "bg-amber-500/10  border-amber-500/20",   arrow: "↕", spark: "#f59e0b" },
+  flat:  { label: "Plateau",         color: "text-zinc-400",    bg: "bg-zinc-700/30 border-zinc-700/30",       arrow: "→", spark: "#71717a" },
+  down:  { label: "Declining",       color: "text-red-400",     bg: "bg-red-500/10 border-red-500/20",         arrow: "↓", spark: "#f87171" },
+  none:  { label: "Not enough data", color: "text-zinc-600",    bg: "bg-zinc-800/50 border-zinc-700/40",       arrow: "·", spark: "#52525b" },
 };
 
 // ─── Delta helper ────────────────────────────────────────────────────────────
@@ -41,6 +42,12 @@ type Props = {
 };
 
 function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND_CONFIG {
+  const t = p.analysis?.trend;
+  if (t === "progressing") return "up";
+  if (t === "mixed")       return "mixed";
+  if (t === "stagnating")  return "flat";
+  if (t === "regressing")  return "down";
+  // fallback: multi-session interpretation
   const ms = p.analysis?.interpretation?.mappedStatus;
   if (ms === "progressing") return "up";
   if (ms === "stagnating")  return "flat";

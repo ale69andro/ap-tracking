@@ -203,7 +203,7 @@ export type ProgressionInterpretation = {
 
 export type ExerciseAnalysisResult = {
   exerciseName: string;
-  trend: "progressing" | "stagnating" | "regressing";
+  trend: "progressing" | "mixed" | "stagnating" | "regressing";
   reason: string;
   currentE1RM: number | null;
   previousE1RM: number | null;

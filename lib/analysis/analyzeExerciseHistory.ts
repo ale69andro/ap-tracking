@@ -3,8 +3,12 @@ import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import { computeNextTarget } from "@/app/lib/recommendations";
 import { interpretProgression } from "@/lib/analysis/interpretProgression";
 
-const MIN_PROGRESS_PCT = 0.01;   // > 1% e1RM gain  → progressing
-const MIN_REGRESS_PCT  = 0.015;  // > 1.5% e1RM loss → regressing
+// ── Per-session classification thresholds ────────────────────────────────────
+const E1RM_CLEARLY_UP   =  0.015;  // >= +1.5%
+const E1RM_SLIGHTLY_UP  =  0.005;  // >= +0.5%
+const E1RM_FLAT_LOW     = -0.010;  // flat band: >= -1.0%
+const E1RM_FLAT_HIGH    =  0.010;  // flat band: <= +1.0%
+const E1RM_CLEARLY_DOWN = -0.015;  // <= -1.5%
 
 function getConfidence(count: number): "low" | "medium" | "high" {
   if (count >= 3) return "high";
@@ -15,7 +19,7 @@ function getConfidence(count: number): "low" | "medium" | "high" {
 function buildReason(
   current: ExerciseSession,
   previous: ExerciseSession | undefined,
-  trend: "progressing" | "stagnating" | "regressing",
+  trend: "progressing" | "mixed" | "stagnating" | "regressing",
   e1RMDeltaPct: number | null,
 ): string {
   if (!previous) return "First session recorded";
@@ -29,6 +33,12 @@ function buildReason(
     if (wDiff < 0 && rDiff > 0) return `−${Math.abs(wDiff)} kg, +${rDiff} reps — e1RM up`;
     if (e1RMDeltaPct !== null)
       return `e1RM up ${(e1RMDeltaPct * 100).toFixed(1)}% vs previous`;
+  }
+
+  if (trend === "mixed") {
+    if (wDiff > 0 && e1RMDeltaPct !== null)
+      return `+${wDiff} kg, but e1RM down ${Math.abs(e1RMDeltaPct * 100).toFixed(1)}%`;
+    return `Heavier load, lower estimated strength`;
   }
 
   if (trend === "regressing") {
@@ -85,35 +95,43 @@ export function analyzeExerciseHistory(
   const e1RMDelta =
     currentE1RM && previousE1RM ? (currentE1RM - previousE1RM) / previousE1RM : null;
 
-  const wDiff = previous ? +(current.topWeight - previous.topWeight).toFixed(2) : 0;
-  const rDiff = previous ? current.topReps - previous.topReps : 0;
-
-  const volumeDeltaPct =
-    previous && previous.totalVolume > 0
-      ? Math.round(((current.totalVolume - previous.totalVolume) / previous.totalVolume) * 100)
-      : null;
+  // Volume delta: requires same workout context to be meaningful.
+  // ExerciseSession has no context field (trainingDayIndex etc.) to verify this,
+  // so we omit the delta to avoid misleading cross-context comparisons.
+  const volumeDeltaPct = null;
 
   // ── Trend classification ─────────────────────────────────────────────────────
-  // e1RM is the primary signal; weight/reps direction is secondary fallback only.
-  let trend: "progressing" | "stagnating" | "regressing";
+  // Explicit signal-based rules. Evaluated in priority order.
+
+  const loadPR        = previous ? current.topWeight > previous.topWeight : false;
+  const repPRSameLoad = previous
+    ? current.topWeight === previous.topWeight && current.topReps > previous.topReps
+    : false;
+
+  const e1rmClearlyUp  = e1RMDelta !== null && e1RMDelta >= E1RM_CLEARLY_UP;
+  const e1rmSlightlyUp = e1RMDelta !== null && e1RMDelta >= E1RM_SLIGHTLY_UP;
+  const e1rmFlat       =
+    e1RMDelta !== null && e1RMDelta >= E1RM_FLAT_LOW && e1RMDelta <= E1RM_FLAT_HIGH;
+  const e1rmClearlyDown = e1RMDelta !== null && e1RMDelta <= E1RM_CLEARLY_DOWN;
+
+  let trend: "progressing" | "mixed" | "stagnating" | "regressing";
 
   if (!previous) {
     trend = "stagnating";
-  } else if (e1RMDelta !== null && e1RMDelta > MIN_PROGRESS_PCT) {
-    // Primary: e1RM clearly improved
+  } else if (repPRSameLoad || e1rmClearlyUp || (loadPR && e1rmSlightlyUp)) {
+    // 1. Progressing: rep PR at same load, or e1RM clearly up, or heavier load + e1RM up
     trend = "progressing";
-  } else if (e1RMDelta !== null && e1RMDelta < -MIN_REGRESS_PCT) {
-    // Primary: e1RM clearly dropped
+  } else if (loadPR) {
+    // 2. Mixed: heavier load achieved but e1RM didn't improve (conflicting signals)
+    trend = "mixed";
+  } else if (!loadPR && !repPRSameLoad && e1rmFlat) {
+    // 3. Plateau: no load/rep PR and e1RM flat
+    trend = "stagnating";
+  } else if (!loadPR && !repPRSameLoad && e1rmClearlyDown) {
+    // 4. Declining: no load/rep PR and e1RM clearly down
     trend = "regressing";
   } else {
-    // Secondary: e1RM absent or inconclusive — fall back to weight/reps signals
-    if (wDiff === 0 && rDiff > 0) {
-      trend = "progressing";
-    } else if (wDiff === 0 && rDiff <= -2) {
-      trend = "regressing";
-    } else {
-      trend = "stagnating";
-    }
+    trend = "stagnating";
   }
 
   const reason = buildReason(current, previous, trend, e1RMDelta);
@@ -125,7 +143,10 @@ export function analyzeExerciseHistory(
 
   // Map to legacy trend format for computeNextTarget
   const legacyTrend =
-    trend === "progressing" ? "up" : trend === "regressing" ? "down" : "flat";
+    trend === "progressing" ? "up"
+    : trend === "regressing" ? "down"
+    : trend === "mixed" ? "flat"
+    : "flat";
   const nextTarget = computeNextTarget(relevant, legacyTrend);
 
   const suggestedRepRange = nextTarget

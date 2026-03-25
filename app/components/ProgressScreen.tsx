@@ -1,6 +1,6 @@
 "use client";
 
-import type { ExerciseProgression, ExerciseSession, UserProfile } from "@/app/types";
+import type { ExerciseProgression, ExerciseSession, UserProfile, TrainingDay, WorkoutTemplate } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import { getSmartRecommendation, computeMuscleGroupLoadMap } from "@/lib/analysis/smartCoach";
@@ -10,10 +10,11 @@ import { CoachLabel } from "./CoachLabel";
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const TREND = {
-  up:   { label: "Progressing", color: "text-emerald-300", bg: "bg-emerald-500/15 border-emerald-500/30", spark: "#10b981", glow: "#10b98126" },
-  flat: { label: "Plateau",     color: "text-amber-400",   bg: "bg-amber-500/15  border-amber-500/30",    spark: "#f59e0b", glow: "#f59e0b26" },
-  down: { label: "Declining",   color: "text-red-400",     bg: "bg-red-500/15    border-red-500/30",      spark: "#f87171", glow: "#f8717126" },
-  none: { label: "New",         color: "text-zinc-400",    bg: "bg-zinc-800/50   border-zinc-700/30",     spark: "#52525b", glow: "transparent" },
+  up:    { label: "Progressing", color: "text-emerald-300", bg: "bg-emerald-500/15 border-emerald-500/30", spark: "#10b981", glow: "#10b98126" },
+  mixed: { label: "Mixed",       color: "text-amber-400",   bg: "bg-amber-500/15  border-amber-500/30",    spark: "#f59e0b", glow: "#f59e0b26" },
+  flat:  { label: "Plateau",     color: "text-zinc-400",    bg: "bg-zinc-800/50   border-zinc-700/30",     spark: "#71717a", glow: "transparent" },
+  down:  { label: "Declining",   color: "text-red-400",     bg: "bg-red-500/15    border-red-500/30",      spark: "#f87171", glow: "#f8717126" },
+  none:  { label: "New",         color: "text-zinc-400",    bg: "bg-zinc-800/50   border-zinc-700/30",     spark: "#52525b", glow: "transparent" },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -97,6 +98,9 @@ function getActionText(
   profile?: UserProfile,
   mgContext?: Record<string, "low" | "medium" | "high">,
 ): string {
+  // Single session: no trend data yet
+  if (p.recentSessions.length < 2) return "Log one more session to start tracking progress";
+
   const ms           = p.analysis?.interpretation?.mappedStatus;
   const status       = p.analysis?.interpretation?.status;
   const conf         = p.analysis?.confidence;
@@ -208,10 +212,13 @@ function Tile({
 // ─── Focus Priority ───────────────────────────────────────────────────────────
 
 function getFocusScore(p: ExerciseProgression): number {
+  // Single session: insufficient data for meaningful classification — lowest priority
+  if (p.recentSessions.length < 2) return 0;
   const trend = p.analysis?.trend;
   const conf  = p.analysis?.confidence;
   let score = 0;
   if (trend === "regressing")       score += 300;
+  else if (trend === "mixed")       score += 250;
   else if (trend === "stagnating")  score += 200;
   else if (trend === "progressing") score += 100;
   if (conf === "high")              score += 30;
@@ -288,6 +295,14 @@ function FocusTodayCard({ p, onTap, profile, mgContext }: { p: ExerciseProgressi
 // ─── Exercise Progress Card ────────────────────────────────────────────────────
 
 function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND {
+  // Single session: no trend can be meaningfully established
+  if (p.recentSessions.length < 2) return "none";
+  const t = p.analysis?.trend;
+  if (t === "progressing") return "up";
+  if (t === "mixed")       return "mixed";
+  if (t === "stagnating")  return "flat";
+  if (t === "regressing")  return "down";
+  // fallback: multi-session interpretation
   const ms = p.analysis?.interpretation?.mappedStatus;
   if (ms === "progressing") return "up";
   if (ms === "stagnating")  return "flat";
@@ -388,13 +403,27 @@ type Props = {
   progressions: ExerciseProgression[];
   onTapExercise: (p: ExerciseProgression) => void;
   profile?: UserProfile;
+  nextDay?: TrainingDay | null;
+  templates?: WorkoutTemplate[];
 };
 
+/** Returns the set of exercise names scheduled for today, or null if unavailable. */
+function getTodayExerciseNames(
+  nextDay: TrainingDay | null | undefined,
+  templates: WorkoutTemplate[] | undefined,
+): Set<string> | null {
+  if (!nextDay?.templateId || !templates) return null;
+  const template = templates.find((t) => t.id === nextDay.templateId);
+  if (!template) return null;
+  return new Set(template.exercises.map((e) => e.name));
+}
+
 const SECTION_CONFIG = [
-  { key: "up",   label: "Progressing",     color: "text-emerald-500" },
-  { key: "down", label: "Needs Attention", color: "text-red-500"     },
-  { key: "flat", label: "Plateau",         color: "text-amber-500"   },
-  { key: "none", label: "New",             color: "text-zinc-500"    },
+  { key: "up",    label: "Progressing",     color: "text-emerald-500" },
+  { key: "down",  label: "Needs Attention", color: "text-red-500"     },
+  { key: "mixed", label: "Mixed Signal",    color: "text-amber-500"   },
+  { key: "flat",  label: "Plateau",         color: "text-zinc-500"    },
+  { key: "none",  label: "New",             color: "text-zinc-500"    },
 ] as const;
 
 function groupProgressions(progressions: ExerciseProgression[]) {
@@ -413,12 +442,19 @@ function groupProgressions(progressions: ExerciseProgression[]) {
     .filter(s => s.items.length > 0);
 }
 
-export default function ProgressScreen({ progressions, onTapExercise, profile }: Props) {
+export default function ProgressScreen({ progressions, onTapExercise, profile, nextDay, templates }: Props) {
   const overview  = computeOverview(progressions);
   const groups    = groupProgressions(progressions);
   const mgContext = computeMuscleGroupLoadMap(progressions);
-  const focus    = progressions.length >= 2
-    ? [...progressions].sort((a, b) => getFocusScore(b) - getFocusScore(a))[0]
+
+  // Focus pool: exercises scheduled for today when plan context is available,
+  // otherwise fall back to all exercises.
+  const todayNames  = getTodayExerciseNames(nextDay, templates);
+  const focusPool   = todayNames
+    ? progressions.filter((p) => todayNames.has(p.name))
+    : progressions;
+  const focus = focusPool.length >= 1
+    ? [...focusPool].sort((a, b) => getFocusScore(b) - getFocusScore(a))[0]
     : null;
 
   const noData = progressions.length === 0;

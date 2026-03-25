@@ -116,7 +116,7 @@ export default function TrainingDayCard({
         <div className="flex-1 min-w-0 overflow-hidden">
           <div className="flex items-center gap-2 mb-1">
             <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
-              {isRealNext ? "Next Up" : "Plan Day"}
+              {isRealNext ? "Next in Plan" : "Plan Day"}
             </p>
             {multiDay && (
               <p className="text-[10px] text-zinc-700">
@@ -139,10 +139,13 @@ export default function TrainingDayCard({
                 {displayLabel ?? "—"}
               </p>
               {lastCompletedDay && (
-                <p className="text-[11px] text-zinc-600 mt-0.5">
-                  {`Last: Day ${lastCompletedDay.dayNumber}${lastDayTemplateName ? ` – ${lastDayTemplateName}` : ""}`}
-                  {lastDate ? ` · ${lastDate}` : ""}
-                </p>
+                <div className="mt-3">
+                  <p className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest leading-tight">Last completed</p>
+                  <p className="text-[11px] text-zinc-600 leading-tight">
+                    {`Day ${lastCompletedDay.dayNumber}${lastDayTemplateName ? ` – ${lastDayTemplateName}` : ""}`}
+                    {lastDate ? ` · ${lastDate}` : ""}
+                  </p>
+                </div>
               )}
             </motion.div>
           </AnimatePresence>

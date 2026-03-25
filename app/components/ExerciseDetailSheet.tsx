@@ -9,10 +9,11 @@ import ExerciseHistorySheet from "./ExerciseHistorySheet";
 import { X } from "lucide-react";
 
 const TREND_CONFIG = {
-  up:   { label: "Progressing",    color: "text-emerald-400", spark: "#10b981" },
-  flat: { label: "Plateau",        color: "text-zinc-400",    spark: "#71717a" },
-  down: { label: "Declining",      color: "text-red-400",     spark: "#f87171" },
-  none: { label: "Not enough data",color: "text-zinc-600",    spark: "#52525b" },
+  up:    { label: "Progressing",    color: "text-emerald-400", spark: "#10b981" },
+  mixed: { label: "Mixed",          color: "text-amber-400",   spark: "#f59e0b" },
+  flat:  { label: "Plateau",        color: "text-zinc-400",    spark: "#71717a" },
+  down:  { label: "Declining",      color: "text-red-400",     spark: "#f87171" },
+  none:  { label: "Not enough data",color: "text-zinc-600",    spark: "#52525b" },
 };
 
 type Props = {
@@ -22,9 +23,11 @@ type Props = {
 };
 
 function resolvedTrendKey(p: ExerciseProgression): keyof typeof TREND_CONFIG {
-  if (p.analysis?.trend === "progressing") return "up";
-  if (p.analysis?.trend === "stagnating")  return "flat";
-  if (p.analysis?.trend === "regressing")  return "down";
+  const t = p.analysis?.trend;
+  if (t === "progressing") return "up";
+  if (t === "mixed")       return "mixed";
+  if (t === "stagnating")  return "flat";
+  if (t === "regressing")  return "down";
   return p.trend;
 }
 

@@ -501,7 +501,7 @@ export default function Home() {
         ) : tab === "progress" ? (
 
           // ── Progress ───────────────────────────────────────────────────
-          <ProgressScreen progressions={effectiveProgressions} onTapExercise={setSelectedExercise} profile={effectiveProfile ?? undefined} />
+          <ProgressScreen progressions={effectiveProgressions} onTapExercise={setSelectedExercise} profile={effectiveProfile ?? undefined} nextDay={nextDay} templates={templates} />
 
         ) : (
 
