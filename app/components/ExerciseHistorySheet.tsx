@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 
 type HistorySession = {
   dateMs: number;
+  workoutName: string;
   sets: ExerciseSet[];
 };
 
@@ -44,7 +45,7 @@ export default function ExerciseHistorySheet({ name, history, onClose }: Props) 
     .map((w) => {
       const ex = w.exercises.find((e) => e.exerciseName === name)!;
       const sets = ex.sets.filter((s) => s.completed);
-      return { dateMs: normalizeDate(w), sets };
+      return { dateMs: normalizeDate(w), workoutName: w.name || "Workout", sets };
     })
     .filter((s) => s.sets.length > 0)
     .sort((a, b) => b.dateMs - a.dateMs);
@@ -86,6 +87,7 @@ export default function ExerciseHistorySheet({ name, history, onClose }: Props) 
                 <div key={i}>
                   <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 mb-2">
                     {formatDate(session.dateMs)}
+                    <span className="font-normal normal-case tracking-normal text-zinc-600"> · {session.workoutName}</span>
                   </p>
                   <div className="bg-zinc-800/50 rounded-xl px-4 py-3 space-y-2">
                     {session.sets.map((set) => {
