@@ -31,15 +31,19 @@ import AddExerciseModal from "./components/AddExerciseModal";
 import ConfirmModal from "./components/ConfirmModal";
 import TrainingDayCard from "./components/TrainingDayCard";
 import TrainingPlanSheet from "./components/TrainingPlanSheet";
+import DailyCheckIn from "./components/DailyCheckIn";
 import { computeMuscleGroupLoadMap } from "@/lib/analysis/smartCoach";
 import { getTrainingDayHint } from "@/app/lib/trainingDayHint";
 import { COACH_TEST_SCENARIOS, COACH_TEST_INITIAL } from "./constants/coachTestScenarios";
 import type { CoachTestState } from "./constants/coachTestScenarios";
+import { CHECK_IN_PRESETS } from "./constants/checkInTestPresets";
 import CoachTestPanel from "./components/CoachTestPanel";
 import { PRESET_TEMPLATES } from "./constants/presetTemplates";
 import type { Equipment, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate, XpEventType } from "./types";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 import { useEffect } from "react";
+import { useDailyCheckIn } from "./hooks/useDailyCheckIn";
+import type { DayType, EnergyLevel } from "./hooks/useDailyCheckIn";
 import { ChevronRight, Plus as LucidePlus } from "lucide-react";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -131,6 +135,8 @@ export default function Home() {
   const [pendingTemplateDayId, setPendingTemplateDayId] = useState<string | null>(null);
   const [coachTest, setCoachTest] = useState<CoachTestState>(COACH_TEST_INITIAL);
   const [skippedSetsCount, setSkippedSetsCount] = useState(0);
+  const [checkInDismissed,  setCheckInDismissed]  = useState(false);
+  const [checkInConfirming, setCheckInConfirming] = useState(false);
 
   const { user, loading: authLoading, signOut } = useAuth();
   const userId = user?.id ?? null;
@@ -139,18 +145,17 @@ export default function Home() {
   const {
     totalXp,
     level,
+    xpIntoLevel,
+    xpNeededForLevel,
     currentStreak,
     longestStreak,
     hasCheckedInToday,
     hasCompletedWorkoutToday,
+    loading: xpLoading,
     awardXp,
   } = useXp(userId ?? null);
 
-  // Daily login XP — fires once per user session (idempotent on server side)
-  useEffect(() => {
-    if (!userId) return;
-    void awardXp("daily_login");
-  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { submitCheckIn } = useDailyCheckIn(userId);
 
   // Stable ref so useWorkout always has a callback without history being needed yet.
   const onSaveSuccessRef = useRef<(savedWorkout: WorkoutSession) => Promise<void>>(
@@ -210,9 +215,52 @@ export default function Home() {
   );
   onSaveSuccessRef.current = onSaveSuccess;
 
+  const handleCheckInContinue = useCallback(
+    async (dayType: DayType, energyLevel?: EnergyLevel) => {
+      setCheckInConfirming(true);
+      await submitCheckIn(dayType, energyLevel);
+      await awardXp(dayType === "rest" ? "rest_day_check_in" : "daily_check_in");
+    },
+    [submitCheckIn, awardXp],
+  );
+
+  const handleCheckInDismiss = useCallback(() => {
+    setCheckInConfirming(false);
+    setCheckInDismissed(true);
+  }, []);
+
+  // "Today already handled" — true when any meaningful activity has been recorded.
+  // Covers: explicit check-in (training/rest), legacy daily_login, or completed workout.
+  const todayAlreadyHandled = hasCheckedInToday || hasCompletedWorkoutToday;
+
+  // ── Check-in demo mode (dev only) ─────────────────────────────────────────
+  // When a preset is active: override XP/streak props and no-op the handler.
+  const activeCheckInPreset = process.env.NODE_ENV === "development"
+    ? (CHECK_IN_PRESETS.find((p) => p.id === coachTest.checkInPresetId) ?? null)
+    : null;
+
+  const checkInLevel           = activeCheckInPreset?.level           ?? level;
+  const checkInXpIntoLevel     = activeCheckInPreset?.xpIntoLevel     ?? xpIntoLevel;
+  const checkInXpNeededForLevel = activeCheckInPreset?.xpNeededForLevel ?? xpNeededForLevel;
+  const checkInCurrentStreak   = activeCheckInPreset?.currentStreak   ?? currentStreak;
+
+  const handleCheckInContinueDemo = useCallback(async () => {}, []);
+  const effectiveCheckInContinue = activeCheckInPreset ? handleCheckInContinueDemo : handleCheckInContinue;
+
+  const showDailyCheckIn =
+    (activeCheckInPreset !== null && !checkInDismissed) ||
+    ((!!userId &&
+    !authLoading &&
+    !xpLoading &&
+    !(activeWorkout !== null) &&
+    !todayAlreadyHandled &&
+    !checkInDismissed)
+    || checkInConfirming);
+
   // Lock body scroll whenever any sheet or modal overlay is visible.
   // Must be after useWorkout so completedSession is initialised.
   useScrollLock(
+    showDailyCheckIn ||
     showModal        ||
     showTemplates    ||
     showTrainingPlan ||
@@ -404,6 +452,17 @@ export default function Home() {
 
   return (
     <>
+      {showDailyCheckIn && (
+        <DailyCheckIn
+          level={checkInLevel}
+          xpIntoLevel={checkInXpIntoLevel}
+          xpNeededForLevel={checkInXpNeededForLevel}
+          currentStreak={checkInCurrentStreak}
+          onContinue={effectiveCheckInContinue}
+          onDismiss={handleCheckInDismiss}
+        />
+      )}
+
       {showModal && (
         <AddExerciseModal
           userExercises={userExercises}
@@ -598,14 +657,6 @@ export default function Home() {
               </span>
             </button>
 
-            {!hasCompletedWorkoutToday && !hasCheckedInToday && (
-              <button
-                onClick={() => void awardXp("rest_day_check_in")}
-                className="w-full flex items-center justify-center border border-zinc-700 rounded-2xl px-4 py-3 mb-4 hover:border-zinc-600 transition-colors text-sm font-semibold text-zinc-300"
-              >
-                Rest Day Check-in
-              </button>
-            )}
 
             <TrainingDayCard
               plan={trainingPlan}

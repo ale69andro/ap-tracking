@@ -265,7 +265,8 @@ export type Workout = WorkoutSession;
 // ─── XP / Level / Streak ──────────────────────────────────────────────────────
 
 export type XpEventType =
-  | "daily_login"
+  | "daily_login"        // legacy — kept for old DB rows, no longer awarded
+  | "daily_check_in"     // training day check-in (5 XP)
   | "rest_day_check_in"
   | "workout_completed"
   | "pr_achieved"

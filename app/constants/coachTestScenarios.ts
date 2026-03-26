@@ -24,12 +24,15 @@ export type CoachTestState = {
     nextDayIndex?: number;
     lastCompletedDayIndex?: number;
   } | null;
+  /** Active check-in demo preset id, or null for real mode. */
+  checkInPresetId: string | null;
 };
 
 export const COACH_TEST_INITIAL: CoachTestState = {
   scenarioId: null,
   profileOverride: null,
   trainingDayOverride: null,
+  checkInPresetId: null,
 };
 
 // ─── Scenario type ───────────────────────────────────────────────────────────

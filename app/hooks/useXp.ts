@@ -235,7 +235,8 @@ export function useXp(userId: string | null) {
 
   const hasCheckedInToday = todayEvents.some(
     (e) =>
-      e.event_type === "daily_login" ||
+      e.event_type === "daily_check_in" ||
+      e.event_type === "daily_login" ||       // legacy
       e.event_type === "rest_day_check_in" ||
       e.event_type === "workout_completed",
   );

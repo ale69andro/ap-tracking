@@ -11,6 +11,7 @@
 import type { UserProfile } from "@/app/types";
 import { COACH_TEST_SCENARIOS, COACH_TEST_INITIAL } from "@/app/constants/coachTestScenarios";
 import type { CoachTestState } from "@/app/constants/coachTestScenarios";
+import { CHECK_IN_PRESETS } from "@/app/constants/checkInTestPresets";
 import { useState } from "react";
 import { X, FlaskConical } from "lucide-react";
 
@@ -22,7 +23,7 @@ interface Props {
 export default function CoachTestPanel({ state, onChange }: Props) {
   const [open, setOpen] = useState(false);
 
-  const isActive = state.scenarioId !== null || state.profileOverride !== null;
+  const isActive = state.scenarioId !== null || state.profileOverride !== null || state.checkInPresetId !== null;
 
   const setScenario = (id: string | null) =>
     onChange({ ...state, scenarioId: id });
@@ -132,6 +133,32 @@ export default function CoachTestPanel({ state, onChange }: Props) {
                   ]}
                 />
               </div>
+            </div>
+
+            {/* Check-in demo */}
+            <div>
+              <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">
+                Check-in Demo
+              </label>
+              <select
+                value={state.checkInPresetId ?? ""}
+                onChange={(e) =>
+                  onChange({ ...state, checkInPresetId: e.target.value || null })
+                }
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-500/60"
+              >
+                <option value="">— Real mode</option>
+                {CHECK_IN_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              {state.checkInPresetId !== null && (
+                <p className="mt-1 text-[10px] text-amber-400/70">
+                  Demo active — no DB writes. Dismiss resets.
+                </p>
+              )}
             </div>
 
             {/* Reset */}

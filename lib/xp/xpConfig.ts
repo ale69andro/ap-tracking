@@ -1,7 +1,8 @@
 import type { XpEventType } from "../../app/types";
 
 export const XP_VALUES: Record<XpEventType, number> = {
-  daily_login: 5,
+  daily_login: 5,          // legacy value — kept so old rows remain parseable
+  daily_check_in: 5,
   rest_day_check_in: 10,
   workout_completed: 40,
   pr_achieved: 100,
