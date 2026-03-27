@@ -132,12 +132,7 @@ export default function DailyCheckIn({
                     : "bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-zinc-500"
                 }`}
               >
-                <span className="block">Training Day</span>
-                <span className={`block text-[11px] font-medium mt-0.5 ${
-                  dayType === "training" ? "text-red-200" : "text-zinc-500"
-                }`}>
-                  +{XP_VALUES.daily_check_in} XP
-                </span>
+                Training Day
               </button>
               <button
                 onClick={() => setDayType("rest")}
@@ -147,12 +142,7 @@ export default function DailyCheckIn({
                     : "bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-zinc-500"
                 }`}
               >
-                <span className="block">Rest Day</span>
-                <span className={`block text-[11px] font-medium mt-0.5 ${
-                  dayType === "rest" ? "text-zinc-300" : "text-zinc-500"
-                }`}>
-                  +{XP_VALUES.rest_day_check_in} XP
-                </span>
+                Rest Day
               </button>
             </div>
 
@@ -183,17 +173,9 @@ export default function DailyCheckIn({
             <button
               disabled={!dayType}
               onClick={handleContinue}
-              className="w-full py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-sm tracking-widest uppercase transition-all disabled:opacity-30 disabled:cursor-not-allowed mb-3 shadow-[0_0_20px_rgba(239,68,68,0.2)]"
+              className="w-full py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-sm tracking-widest uppercase transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(239,68,68,0.2)]"
             >
               Continue
-            </button>
-
-            {/* Later */}
-            <button
-              onClick={onDismiss}
-              className="w-full py-1.5 text-sm text-zinc-600 hover:text-zinc-400 transition-colors"
-            >
-              Later
             </button>
           </>
 
