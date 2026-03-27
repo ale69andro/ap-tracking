@@ -33,17 +33,20 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isAuthRoute = pathname.startsWith("/auth");
+  const isAuthRoute   = pathname.startsWith("/auth");
+  const isPublicRoute = pathname === "/";
 
-  if (!user && !isAuthRoute) {
+  // Authenticated users: bounce off landing and auth pages into the app
+  if (user && (isPublicRoute || isAuthRoute)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/auth/login";
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthRoute) {
+  // Unauthenticated users: only block protected routes
+  if (!user && !isAuthRoute && !isPublicRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/auth/login";
     return NextResponse.redirect(url);
   }
 
