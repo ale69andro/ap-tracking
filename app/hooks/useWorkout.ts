@@ -505,7 +505,7 @@ export function useWorkout(
 
     if (error) {
       console.error("Failed to save workout:", error);
-      return 0;
+      throw error;
     }
 
     setHistory((prev) => [session, ...prev]);

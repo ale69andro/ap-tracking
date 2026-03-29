@@ -163,10 +163,7 @@ function getActionText(
 function computeOverview(progressions: ExerciseProgression[]) {
   const withPrev = progressions.filter((p) => p.recentSessions.length >= 2);
 
-  const improvingCount = withPrev.filter((p) => {
-    const d = getDelta(p.recentSessions);
-    return d && (d.wDiff > 0 || d.rDiff > 0);
-  }).length;
+  const improvingCount = withPrev.filter((p) => resolvedTrendKey(p) === "up").length;
 
   const wDeltas = withPrev
     .map((p) => getDelta(p.recentSessions))

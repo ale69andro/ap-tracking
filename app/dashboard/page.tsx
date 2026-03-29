@@ -129,6 +129,7 @@ export default function Home() {
   const [isEditingName, setIsEditingName]   = useState(false);
   const [pendingExit, setPendingExit]     = useState<"discard" | "save" | null>(null);
   const [confirming, setConfirming]       = useState(false);
+  const [saveError, setSaveError]         = useState(false);
   const [showProfileSheet, setShowProfileSheet]   = useState(false);
   const [showTrainingPlan, setShowTrainingPlan]   = useState(false);
   const [planDraftDays, setPlanDraftDays]         = useState<TrainingDay[]>([]);
@@ -426,12 +427,15 @@ export default function Home() {
 
   const handleConfirmExit = async () => {
     setConfirming(true);
+    setSaveError(false);
     try {
       if (pendingExit === "save") {
         const skipped = await saveWorkout();
         setSkippedSetsCount(skipped ?? 0);
       } else resetWorkout();
       setPendingExit(null);
+    } catch {
+      setSaveError(true);
     } finally {
       setConfirming(false);
     }
@@ -542,8 +546,9 @@ export default function Home() {
           cancelLabel="Stay"
           loadingLabel={pendingExit === "save" ? "Saving..." : "Ending..."}
           loading={confirming}
+          error={saveError ? "Couldn't save workout. Please try again. Your workout is still here." : undefined}
           onConfirm={handleConfirmExit}
-          onCancel={() => setPendingExit(null)}
+          onCancel={() => { setPendingExit(null); setSaveError(false); }}
         />
       )}
 

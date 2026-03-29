@@ -7,6 +7,7 @@ type Props = {
   cancelLabel: string;
   loadingLabel?: string;
   loading?: boolean;
+  error?: string;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -18,6 +19,7 @@ export default function ConfirmModal({
   cancelLabel,
   loadingLabel,
   loading = false,
+  error,
   onConfirm,
   onCancel,
 }: Props) {
@@ -32,6 +34,7 @@ export default function ConfirmModal({
       >
         <h2 className="text-xl font-black text-white mb-2">{title}</h2>
         <p className="text-sm text-zinc-500 mb-6">{description}</p>
+        {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
         <div className="space-y-3">
           <button
             onClick={onConfirm}
