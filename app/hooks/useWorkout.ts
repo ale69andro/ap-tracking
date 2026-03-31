@@ -320,6 +320,36 @@ export function useWorkout(
     return "";
   };
 
+  /**
+   * Finds the most recent SessionExercise block to use as a pre-fill source.
+   *
+   * Priority:
+   *   1. Most recent session with matching templateId that contains this exercise name.
+   *   2. Most recent session (any templateId) that contains this exercise name.
+   *   3. undefined — caller falls back to template-based construction.
+   *
+   * history is already sorted newest-first, so the first match is always the most recent.
+   */
+  const findPreviousSessionExercise = (
+    exerciseName: string,
+    templateId?: string,
+  ): SessionExercise | undefined => {
+    // Pass 1: same template
+    if (templateId) {
+      for (const session of history) {
+        if (session.templateId !== templateId) continue;
+        const ex = session.exercises.find((e) => e.exerciseName === exerciseName);
+        if (ex && ex.sets.length > 0) return ex;
+      }
+    }
+    // Pass 2: any session with this exercise name
+    for (const session of history) {
+      const ex = session.exercises.find((e) => e.exerciseName === exerciseName);
+      if (ex && ex.sets.length > 0) return ex;
+    }
+    return undefined;
+  };
+
   const startWorkout = (
     name = "Workout",
     templateId?: string,
@@ -327,8 +357,34 @@ export function useWorkout(
     trainingDayIndex?: number,
   ) => {
     const exercises = (templateExercises ?? []).map((ex) => {
-      const numSets    = ex.sets        ?? 1;
-      const targetReps = ex.targetReps  != null ? String(ex.targetReps) : "";
+      const prev = findPreviousSessionExercise(ex.name, templateId);
+
+      if (prev) {
+        // Restore real set structure from the previous session.
+        // Reset all runtime/completion state; regenerate IDs for this session.
+        const sets: ExerciseSet[] = prev.sets.map((s) => ({
+          id:          uid(),
+          weight:      s.weight,
+          reps:        s.reps,
+          type:        s.type,
+          restSeconds: s.restSeconds,
+          completed:   false,
+          // completedAt intentionally omitted
+        }));
+        return {
+          id:                 uid(),
+          exerciseName:       ex.name,
+          muscleGroups:       ex.muscleGroups,
+          notes:              ex.notes,
+          sets,
+          warmupRestSeconds:  prev.warmupRestSeconds,
+          workingRestSeconds: prev.workingRestSeconds,
+        };
+      }
+
+      // Fallback: template-based construction (unchanged behaviour)
+      const numSets    = ex.sets       ?? 1;
+      const targetReps = ex.targetReps != null ? String(ex.targetReps) : "";
       const restSecs   = ex.restSeconds ?? 60;
       const weight     = resolveStartWeight(ex.name, ex.startWeight);
       const sets: ExerciseSet[] = Array.from({ length: numSets }, () => ({
@@ -340,13 +396,13 @@ export function useWorkout(
         completed:   false,
       }));
       return {
-        id:                  uid(),
-        exerciseName:        ex.name,
-        muscleGroups:        ex.muscleGroups,
-        notes:               ex.notes,
+        id:                 uid(),
+        exerciseName:       ex.name,
+        muscleGroups:       ex.muscleGroups,
+        notes:              ex.notes,
         sets,
-        warmupRestSeconds:   45,
-        workingRestSeconds:  ex.restSeconds ?? 90,
+        warmupRestSeconds:  45,
+        workingRestSeconds: ex.restSeconds ?? 90,
       };
     });
     setActiveWorkout({ id: uid(), name, status: "active", templateId, trainingDayIndex, startedAt: Date.now(), exercises });
