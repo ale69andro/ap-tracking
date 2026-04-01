@@ -258,6 +258,14 @@ export type TrainingProgress = {
   lastCompletedAt: number | null;       // timestamp of last completion
 };
 
+// ─── Coaching Suggestions ─────────────────────────────────────────────────────
+
+export type WorkoutSuggestion = {
+  type: 'next_set';
+  title: string;
+  detail: string;
+};
+
 // ─── Backward-compat alias ────────────────────────────────────────────────────
 
 export type Workout = WorkoutSession;

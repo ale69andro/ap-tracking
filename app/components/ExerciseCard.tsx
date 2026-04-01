@@ -1,9 +1,8 @@
 import { useState } from "react";
 import type { HTMLAttributes } from "react";
-import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression } from "@/app/types";
+import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression, WorkoutSuggestion } from "@/app/types";
 import SetRow from "./SetRow";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
-import { CoachLabel } from "./CoachLabel";
 import { GripVertical, Trash2, ChevronUp, ChevronDown, Plus } from "lucide-react";
 
 type Props = {
@@ -22,6 +21,7 @@ type Props = {
   onClearTimer: () => void;
   onAdjustTimer: (delta: number) => void;
   onExtendTimer: (seconds: number) => void;
+  suggestion?: WorkoutSuggestion;
   onOpenDetail?: () => void;
   dragHandleProps?: HTMLAttributes<HTMLElement>;
 };
@@ -36,6 +36,7 @@ export default function ExerciseCard({
   onAddSet,
   onUpdateSet,
   onCompleteSet,
+  suggestion,
   onUncompleteSet,
   onClearTimer,
   onAdjustTimer,
@@ -107,7 +108,7 @@ export default function ExerciseCard({
           <div className="px-4 py-2 border-b border-zinc-800/40 space-y-0.5">
             {targets.last && (
               <p className="text-[11px] text-zinc-500 tabular-nums">
-                Last · {targets.last.weight} kg × {targets.last.reps}
+                Last session · {targets.last.weight} kg × {targets.last.reps}
               </p>
             )}
             {targets.best && (targets.best.weight !== targets.last?.weight || targets.best.reps !== targets.last?.reps) && (
@@ -117,7 +118,7 @@ export default function ExerciseCard({
             )}
             {targets.target && (targets.target.weight != null || targets.target.repRange != null) && (
               <div className="pt-1">
-                <CoachLabel />
+                <p className="text-[10px] uppercase tracking-widest text-red-500 font-semibold mb-0.5">Target today</p>
                 <p className="text-[13px] font-bold text-white tabular-nums leading-tight">
                   {targets.target.weight != null ? `${targets.target.weight} kg` : ""}
                   {targets.target.weight != null && targets.target.repRange ? " × " : ""}
@@ -166,6 +167,17 @@ export default function ExerciseCard({
           })()}
         </div>
       </div>
+
+      {/* Inline coaching suggestion */}
+      {suggestion && (
+        <div className="mx-3 mb-2 px-3 py-2 rounded-xl bg-zinc-800/60 border border-zinc-700/50">
+          <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-widest mb-0.5">
+            ⚡ Suggestion
+          </p>
+          <p className="text-[13px] text-white font-bold">{suggestion.title}</p>
+          <p className="text-[11px] text-zinc-500 mt-0.5">{suggestion.detail}</p>
+        </div>
+      )}
 
       {/* Add Set */}
       <div className="px-3 pb-1">

@@ -1,4 +1,6 @@
 import type { ExerciseSet, WorkoutSession, WorkoutHighlight } from "@/app/types";
+
+export type PRRecord = { exerciseName: string; type: "e1rm" | "weight" };
 import { calculate1RM } from "@/lib/analysis/calculate1RM";
 
 /** Returns only working sets — excludes Warm-up type. Use for non-metric purposes (e.g. weight pre-fill). */
@@ -77,4 +79,49 @@ export function computeWorkoutHighlight(session: WorkoutSession): WorkoutHighlig
   }
 
   return best;
+}
+
+/**
+ * Computes average e1RM delta between this session and the most recent prior
+ * session for each exercise. Returns null if no exercises have prior data.
+ * priorHistory must be newest-first (i.e. history.slice(1) after saving).
+ */
+export function computeStrengthDelta(
+  session: WorkoutSession,
+  priorHistory: WorkoutSession[],
+): number | null {
+  const deltas: number[] = [];
+
+  for (const ex of session.exercises) {
+    const effectiveSets = getEffectiveSets(ex.sets);
+    if (effectiveSets.length === 0) continue;
+
+    const thisE1rm = effectiveSets.reduce((best, s) => {
+      const w = parseFloat(s.weight) || 0;
+      const r = parseFloat(s.reps) || 0;
+      return Math.max(best, calculate1RM(w, r));
+    }, 0);
+    if (thisE1rm === 0) continue;
+
+    // Most recent prior session that contains this exercise
+    const priorSession = priorHistory.find((w) =>
+      w.exercises.some((e) => e.exerciseName === ex.exerciseName),
+    );
+    if (!priorSession) continue;
+
+    const priorE1rm = priorSession.exercises
+      .filter((e) => e.exerciseName === ex.exerciseName)
+      .flatMap((e) => getEffectiveSets(e.sets))
+      .reduce((best, s) => {
+        const w = parseFloat(s.weight) || 0;
+        const r = parseFloat(s.reps) || 0;
+        return Math.max(best, calculate1RM(w, r));
+      }, 0);
+    if (priorE1rm === 0) continue;
+
+    deltas.push((thisE1rm - priorE1rm) / priorE1rm);
+  }
+
+  if (deltas.length === 0) return null;
+  return Math.round((deltas.reduce((a, b) => a + b, 0) / deltas.length) * 100);
 }

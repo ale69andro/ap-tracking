@@ -11,15 +11,17 @@ import WorkoutTimer from "../components/WorkoutTimer";
 import TemplatesSheet from "../components/TemplatesSheet";
 import WorkoutDetailSheet from "../components/WorkoutDetailSheet";
 import WorkoutSummaryScreen from "../components/WorkoutSummaryScreen";
+import SessionMomentumToast from "../components/SessionMomentumToast";
 import HistoryScreen from "../components/HistoryScreen";
 import ProgressScreen from "../components/ProgressScreen";
 import ProfileSetupScreen from "../components/ProfileSetupScreen";
 import ProfileEditSheet from "../components/ProfileEditSheet";
 import LevelBadge from "../components/LevelBadge";
 import { useWorkout, getSessionDate } from "../hooks/useWorkout";
+import { getExerciseSuggestion } from "@/lib/analysis/getWorkoutSuggestion";
 import { useXp } from "../hooks/useXp";
 import { useProfile } from "../hooks/useProfile";
-import { getEffectiveSets } from "../lib/workout";
+import { getEffectiveSets, computeStrengthDelta, type PRRecord } from "../lib/workout";
 import { useProgression } from "../hooks/useProgression";
 import { useTemplates } from "../hooks/useTemplates";
 import { useAuth } from "../hooks/useAuth";
@@ -38,8 +40,10 @@ import { COACH_TEST_SCENARIOS, COACH_TEST_INITIAL } from "../constants/coachTest
 import type { CoachTestState } from "../constants/coachTestScenarios";
 import { CHECK_IN_PRESETS } from "../constants/checkInTestPresets";
 import CoachTestPanel from "../components/CoachTestPanel";
+import PRToast, { type PRType } from "../components/PRToast";
 import { PRESET_TEMPLATES } from "../constants/presetTemplates";
 import type { Equipment, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate, XpEventType } from "../types";
+import { calculate1RM } from "@/lib/analysis/calculate1RM";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 import { useEffect } from "react";
 import { useDailyCheckIn } from "../hooks/useDailyCheckIn";
@@ -97,6 +101,7 @@ type SortableExerciseCardProps = {
   onAdjustTimer: (delta: number) => void;
   onExtendTimer: (seconds: number) => void;
   onUpdateExerciseRest: (field: "warmupRestSeconds" | "workingRestSeconds", value: number) => void;
+  suggestion?: import("../types").WorkoutSuggestion;
   onOpenDetail?: () => void;
 };
 
@@ -120,6 +125,22 @@ function SortableExerciseCard(props: SortableExerciseCardProps) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+function pickMomentumMessage(prs: PRRecord[], history: WorkoutSession[]): string {
+  if (prs.length > 0) return "🏆 New PR — well done";
+  if (history.length > 0) {
+    const delta = computeStrengthDelta(history[0], history.slice(1));
+    if (delta !== null && delta > 3) return "📈 Strength is trending up";
+  }
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recentDays = new Set(
+    history
+      .filter((s) => s.startedAt >= sevenDaysAgo)
+      .map((s) => new Date(s.startedAt).toDateString()),
+  ).size;
+  if (recentDays >= 3) return `🔥 ${recentDays} training days this week`;
+  return "💪 Solid work today";
+}
+
 export default function Home() {
   const [tab, setTab]                       = useState<"home" | "history" | "progress">("home");
   const [showModal, setShowModal]           = useState(false);
@@ -138,6 +159,10 @@ export default function Home() {
   const [skippedSetsCount, setSkippedSetsCount] = useState(0);
   const [checkInDismissed,  setCheckInDismissed]  = useState(false);
   const [checkInConfirming, setCheckInConfirming] = useState(false);
+  const [prFlash, setPrFlash] = useState<{ type: PRType; exerciseName: string; value: number } | null>(null);
+  const [sessionPRs, setSessionPRs] = useState<PRRecord[]>([]);
+  const [momentumMessage, setMomentumMessage] = useState<string | null>(null);
+  const handlePrDismiss = useCallback(() => setPrFlash(null), []);
 
   const { user, loading: authLoading, signOut } = useAuth();
   const userId = user?.id ?? null;
@@ -188,6 +213,12 @@ export default function Home() {
     dismissSummary,
   } = useWorkout(userId, profile?.restTimerSound ?? false, (w) => onSaveSuccessRef.current(w));
 
+  const handleDismissSummary = useCallback(() => {
+    setMomentumMessage(pickMomentumMessage(sessionPRs, history));
+    setSessionPRs([]);
+    dismissSummary();
+  }, [sessionPRs, history, dismissSummary]);
+
   // onSaveSuccess: award XP after a workout is saved.
   // Defined here so it can safely reference `history` (from useWorkout above).
   const onSaveSuccess = useCallback(
@@ -215,6 +246,69 @@ export default function Home() {
     [awardXp, history],
   );
   onSaveSuccessRef.current = onSaveSuccess;
+
+  // handleCompleteSet: wraps completeSet with instant PR detection.
+  // Checks e1RM PR first, then weight PR. Shows PRToast and awards XP if new PR found.
+  // Warm-up sets are excluded via set.type check. XP is idempotent per day.
+  const handleCompleteSet = useCallback(
+    (exId: string, setId: string) => {
+      const exercise = activeWorkout?.exercises.find((e) => e.id === exId);
+      const set = exercise?.sets.find((s) => s.id === setId);
+
+      if (set && exercise && set.type !== "Warm-up") {
+        const w = parseFloat(set.weight) || 0;
+        const r = parseFloat(set.reps) || 0;
+
+        if (w > 0 && r > 0) {
+          const thisE1rm = calculate1RM(w, r);
+
+          const historicalSets = history
+            .flatMap((session) => session.exercises)
+            .filter((e) => e.exerciseName === exercise.exerciseName)
+            .flatMap((e) => getEffectiveSets(e.sets));
+
+          // Also include sets already completed earlier in the current session
+          // (excluding the set being completed right now, by id)
+          const sessionPriorSets = exercise.sets.filter(
+            (s) => s.completed === true && s.type !== "Warm-up" && s.id !== setId,
+          );
+
+          const allPriorSets = [...historicalSets, ...sessionPriorSets];
+
+          const bestPriorE1rm = allPriorSets.reduce((best, s) => {
+            const sw = parseFloat(s.weight) || 0;
+            const sr = parseFloat(s.reps) || 0;
+            return Math.max(best, calculate1RM(sw, sr));
+          }, 0);
+
+          const bestPriorWeight = allPriorSets.reduce(
+            (best, s) => Math.max(best, parseFloat(s.weight) || 0),
+            0,
+          );
+
+          if (bestPriorE1rm > 0 && thisE1rm > bestPriorE1rm) {
+            setPrFlash({ type: "e1rm", exerciseName: exercise.exerciseName, value: Math.round(thisE1rm * 10) / 10 });
+            setSessionPRs((prev) => {
+              const exists = prev.find((p) => p.exerciseName === exercise.exerciseName);
+              if (exists) return exists.type === "e1rm" ? prev : prev.map((p) => p.exerciseName === exercise.exerciseName ? { ...p, type: "e1rm" as const } : p);
+              return [...prev, { exerciseName: exercise.exerciseName, type: "e1rm" as const }];
+            });
+            void awardXp("pr_achieved" as XpEventType, { exercise: exercise.exerciseName });
+          } else if (bestPriorWeight > 0 && w > bestPriorWeight) {
+            setPrFlash({ type: "weight", exerciseName: exercise.exerciseName, value: w });
+            setSessionPRs((prev) => {
+              if (prev.some((p) => p.exerciseName === exercise.exerciseName)) return prev;
+              return [...prev, { exerciseName: exercise.exerciseName, type: "weight" as const }];
+            });
+            void awardXp("pr_achieved" as XpEventType, { exercise: exercise.exerciseName });
+          }
+        }
+      }
+
+      completeSet(exId, setId);
+    },
+    [activeWorkout, history, completeSet, awardXp],
+  );
 
   const handleCheckInContinue = useCallback(
     async (dayType: DayType, energyLevel?: EnergyLevel) => {
@@ -554,7 +648,7 @@ export default function Home() {
 
       {completedSession && (
         <div className="fixed inset-0 z-50 bg-zinc-950 overflow-y-auto">
-          <WorkoutSummaryScreen session={completedSession} onDone={dismissSummary} skippedSets={skippedSetsCount} />
+          <WorkoutSummaryScreen session={completedSession} onDone={handleDismissSummary} skippedSets={skippedSetsCount} previousSessions={history.slice(1)} prs={sessionPRs} />
         </div>
       )}
 
@@ -795,12 +889,13 @@ export default function Home() {
                         onDeleteSet={(setId) => deleteSet(exercise.id, setId)}
                         onAddSet={() => addSet(exercise.id)}
                         onUpdateSet={(setId, field, value) => updateSet(exercise.id, setId, field, value)}
-                        onCompleteSet={(setId) => completeSet(exercise.id, setId)}
+                        onCompleteSet={(setId) => handleCompleteSet(exercise.id, setId)}
                         onUncompleteSet={(setId) => uncompleteSet(exercise.id, setId)}
                         onClearTimer={clearTimer}
                         onAdjustTimer={adjustTimer}
                         onExtendTimer={extendTimer}
                         onUpdateExerciseRest={(field, value) => updateExerciseRest(exercise.id, field, value)}
+                        suggestion={getExerciseSuggestion(exercise) ?? undefined}
                         onOpenDetail={prog ? () => setSelectedExercise(prog) : undefined}
                       />
                     );
@@ -831,6 +926,24 @@ export default function Home() {
 
       {process.env.NODE_ENV === "development" && (
         <CoachTestPanel state={coachTest} onChange={setCoachTest} />
+      )}
+
+      {prFlash && (
+        <PRToast
+          key={`${prFlash.exerciseName}-${prFlash.value}`}
+          type={prFlash.type}
+          exerciseName={prFlash.exerciseName}
+          value={prFlash.value}
+          onDismiss={handlePrDismiss}
+        />
+      )}
+
+      {momentumMessage && (
+        <SessionMomentumToast
+          key={momentumMessage}
+          message={momentumMessage}
+          onDismiss={() => setMomentumMessage(null)}
+        />
       )}
     </>
   );

@@ -2,12 +2,14 @@
 
 import type { WorkoutSession } from "@/app/types";
 import { getSessionDate } from "@/app/hooks/useWorkout";
-import { computeWorkoutHighlight, getEffectiveSets } from "@/app/lib/workout";
+import { computeWorkoutHighlight, computeStrengthDelta, getEffectiveSets, type PRRecord } from "@/app/lib/workout";
 
 type Props = {
   session: WorkoutSession;
   onDone: () => void;
   skippedSets?: number;
+  previousSessions?: WorkoutSession[];
+  prs?: PRRecord[];
 };
 
 function formatDuration(seconds?: number): string {
@@ -25,7 +27,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function WorkoutSummaryScreen({ session, onDone, skippedSets = 0 }: Props) {
+export default function WorkoutSummaryScreen({ session, onDone, skippedSets = 0, previousSessions, prs = [] }: Props) {
   const totalSets = session.exercises.reduce((n, e) => n + getEffectiveSets(e.sets).length, 0);
   const totalVolume = session.exercises.reduce(
     (sum, e) =>
@@ -39,6 +41,14 @@ export default function WorkoutSummaryScreen({ session, onDone, skippedSets = 0 
   );
 
   const highlight = computeWorkoutHighlight(session);
+  const strengthDelta = previousSessions ? computeStrengthDelta(session, previousSessions) : null;
+  const hasFeedback = strengthDelta !== null || prs.length > 0;
+
+  const summaryTitle =
+    strengthDelta === null ? session.name
+    : strengthDelta > 0   ? "Stronger"
+    : strengthDelta === 0 ? "Solid"
+    :                       "Recovery";
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col px-4 pt-16 pb-12 max-w-xl mx-auto">
@@ -47,7 +57,7 @@ export default function WorkoutSummaryScreen({ session, onDone, skippedSets = 0 
           Workout Complete
         </p>
         <h1 className="text-4xl font-black text-white tracking-tight leading-none">
-          {session.name}
+          {summaryTitle}
         </h1>
         <p className="text-sm text-zinc-500 mt-2">{getSessionDate(session)}</p>
       </div>
@@ -62,6 +72,44 @@ export default function WorkoutSummaryScreen({ session, onDone, skippedSets = 0 
           value={totalVolume > 0 ? `${Math.round(totalVolume).toLocaleString()} kg` : "—"}
         />
       </div>
+
+      {/* Feedback block */}
+      {hasFeedback && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-5 mb-4">
+          {strengthDelta !== null && (
+            <p className={`text-xl font-black tabular-nums ${prs.length > 0 ? "mb-3" : ""} ${strengthDelta > 0 ? "text-emerald-400" : strengthDelta === 0 ? "text-zinc-300" : "text-orange-400"}`}>
+              {strengthDelta === 0
+                ? "Same strength as last session"
+                : `${strengthDelta > 0 ? "+" : ""}${strengthDelta}% ${strengthDelta > 0 ? "stronger" : "weaker"} than last session`}
+            </p>
+          )}
+          {prs.length > 0 && (
+            <div>
+              <p className="text-sm font-bold text-white mb-1.5">
+                🏆 {prs.length} {prs.length === 1 ? "PR" : "PRs"} today
+              </p>
+              {prs.map((pr) => (
+                <p key={pr.exerciseName} className="text-xs text-zinc-400 leading-relaxed">
+                  {pr.exerciseName} — New {pr.type === "e1rm" ? "e1RM" : "Weight"} PR
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Coach insight */}
+      {(strengthDelta !== null || prs.length > 0) && (
+        <p className="text-xs text-zinc-500 mb-4 -mt-1">
+          {strengthDelta !== null
+            ? strengthDelta >= 3
+              ? "Your strength is trending up."
+              : strengthDelta >= -1
+              ? "You matched your previous performance."
+              : "Recovery session — strength was lower today."
+            : "You hit a new PR today."}
+        </p>
+      )}
 
       {/* Skipped sets notice */}
       {skippedSets > 0 && (

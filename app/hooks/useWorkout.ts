@@ -321,28 +321,11 @@ export function useWorkout(
   };
 
   /**
-   * Finds the most recent SessionExercise block to use as a pre-fill source.
-   *
-   * Priority:
-   *   1. Most recent session with matching templateId that contains this exercise name.
-   *   2. Most recent session (any templateId) that contains this exercise name.
-   *   3. undefined — caller falls back to template-based construction.
-   *
-   * history is already sorted newest-first, so the first match is always the most recent.
+   * Finds the most recent SessionExercise block globally.
+   * No templateId preference — always returns the newest match across all sessions.
+   * Used as the single restore source for both structure and weights.
    */
-  const findPreviousSessionExercise = (
-    exerciseName: string,
-    templateId?: string,
-  ): SessionExercise | undefined => {
-    // Pass 1: same template
-    if (templateId) {
-      for (const session of history) {
-        if (session.templateId !== templateId) continue;
-        const ex = session.exercises.find((e) => e.exerciseName === exerciseName);
-        if (ex && ex.sets.length > 0) return ex;
-      }
-    }
-    // Pass 2: any session with this exercise name
+  const findGlobalPreviousExercise = (exerciseName: string): SessionExercise | undefined => {
     for (const session of history) {
       const ex = session.exercises.find((e) => e.exerciseName === exerciseName);
       if (ex && ex.sets.length > 0) return ex;
@@ -357,20 +340,31 @@ export function useWorkout(
     trainingDayIndex?: number,
   ) => {
     const exercises = (templateExercises ?? []).map((ex) => {
-      const prev = findPreviousSessionExercise(ex.name, templateId);
+      // Single restore source: globally newest session for this exercise.
+      const prev = findGlobalPreviousExercise(ex.name);
 
       if (prev) {
-        // Restore real set structure from the previous session.
-        // Reset all runtime/completion state; regenerate IDs for this session.
-        const sets: ExerciseSet[] = prev.sets.map((s) => ({
-          id:          uid(),
-          weight:      s.weight,
-          reps:        s.reps,
-          type:        s.type,
-          restSeconds: s.restSeconds,
-          completed:   false,
-          // completedAt intentionally omitted
-        }));
+        // Restore all fields (structure, weights, reps, rest) from the most
+        // recent real session. Reset completion state and regenerate IDs.
+        const weightsByType: Record<string, string[]> = {};
+        for (const s of prev.sets) {
+          (weightsByType[s.type] ??= []).push(s.weight);
+        }
+        const typeCounter: Record<string, number> = {};
+        const sets: ExerciseSet[] = prev.sets.map((s) => {
+          const nth           = typeCounter[s.type] ?? 0;
+          typeCounter[s.type] = nth + 1;
+          const weight        = weightsByType[s.type]?.[nth] ?? s.weight;
+          return {
+            id:          uid(),
+            weight,
+            reps:        s.reps,
+            type:        s.type,
+            restSeconds: s.restSeconds,
+            completed:   false,
+            // completedAt intentionally omitted
+          };
+        });
         return {
           id:                 uid(),
           exerciseName:       ex.name,
