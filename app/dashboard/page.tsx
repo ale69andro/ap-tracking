@@ -686,7 +686,7 @@ export default function Home() {
             onUpdateExerciseRest={(field, value) => updateExerciseRest(focusedExercise.id, field, value)}
             onClose={closeFocused}
             onNavigate={goToFocused}
-            onViewDetail={focusedProg ? () => { closeFocused(); setSelectedExercise(focusedProg); } : undefined}
+            onViewDetail={focusedProg ? () => setSelectedExercise(focusedProg) : undefined}
             timerExerciseName={timerExerciseName}
           />
         );
