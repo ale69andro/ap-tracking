@@ -1,16 +1,62 @@
 "use client";
 
 import { useMemo } from "react";
-import type { WorkoutSession, ExerciseProgression, ExerciseSession } from "@/app/types";
+import type { WorkoutSession, WorkoutTemplate, ExerciseProgression, ExerciseSession, UserProfile } from "@/app/types";
 import { computeSessionScore, computeTrend } from "@/app/lib/progression";
 import { getEffectiveSets } from "@/app/lib/workout";
 import { getSessionDate } from "@/app/hooks/useWorkout";
+import { getDefaultRepRange } from "@/app/lib/repRangeDefaults";
 import { analyzeExerciseHistory } from "@/lib/analysis/analyzeExerciseHistory";
 import { getTopSet } from "@/lib/analysis/exerciseMetrics";
 
-export function useProgression(history: WorkoutSession[]): ExerciseProgression[] {
+export function useProgression(
+  history: WorkoutSession[],
+  templates: WorkoutTemplate[] = [],
+  experience?: UserProfile["experience"],
+): ExerciseProgression[] {
   return useMemo(() => {
-    // Collect all sessions per exercise name
+    // ── Build rep-range map (template-aware, most-recently-used wins) ──────────
+    // Step 1: find the latest startedAt per templateId from history
+    const templateLastUsed = new Map<string, number>();
+    for (const session of history) {
+      if (session.templateId !== undefined) {
+        const current = templateLastUsed.get(session.templateId) ?? 0;
+        templateLastUsed.set(session.templateId, Math.max(current, session.startedAt));
+      }
+    }
+
+    // Step 2: for each template exercise with a defined range, keep the entry
+    //         from the most recently used template (ties: iteration order wins)
+    const repRangeMap = new Map<string, { min: number; max: number }>();
+    const repRangeSource = new Map<string, number>(); // exerciseName → usedAt of winning template
+
+    for (const template of templates) {
+      const usedAt = templateLastUsed.get(template.id) ?? 0;
+      for (const ex of template.exercises) {
+        if (ex.targetRepsMin !== undefined && ex.targetRepsMax !== undefined) {
+          const existingUsedAt = repRangeSource.get(ex.name) ?? -1;
+          if (usedAt > existingUsedAt) {
+            repRangeMap.set(ex.name, { min: ex.targetRepsMin, max: ex.targetRepsMax });
+            repRangeSource.set(ex.name, usedAt);
+          }
+        }
+      }
+    }
+
+    // Step 3: for any exercise name not yet in repRangeMap (user templates that
+    //         predate targetRepsMin/Max, or exercises with no template at all),
+    //         fall back to the default range derived from the exercise library.
+    // This pass runs after the template loop so explicit template values always win.
+    const allTemplateExerciseNames = new Set(
+      templates.flatMap((t) => t.exercises.map((ex) => ex.name))
+    );
+    for (const name of allTemplateExerciseNames) {
+      if (!repRangeMap.has(name)) {
+        repRangeMap.set(name, getDefaultRepRange(name, experience));
+      }
+    }
+
+    // ── Collect all sessions per exercise name ─────────────────────────────────
     const map = new Map<string, { muscleGroups: string[]; sessions: ExerciseSession[] }>();
 
     // history is newest-first; iterate oldest-first for chronological session ordering
@@ -42,7 +88,7 @@ export function useProgression(history: WorkoutSession[]): ExerciseProgression[]
       });
     });
 
-    // Derive progression entries
+    // ── Derive progression entries ─────────────────────────────────────────────
     const entries: ExerciseProgression[] = [];
     const allBestWeights: number[] = [];
 
@@ -58,7 +104,8 @@ export function useProgression(history: WorkoutSession[]): ExerciseProgression[]
       const lastSeen       = sessions[sessions.length - 1].date;
       const trendScores    = sessions.slice(-5).map((s) => s.score);
       const trend          = computeTrend(trendScores);
-      const analysis       = analyzeExerciseHistory(recentSessions, name);
+      const repRange       = repRangeMap.get(name);
+      const analysis       = analyzeExerciseHistory(recentSessions, name, repRange);
 
       entries.push({
         name,
@@ -73,5 +120,5 @@ export function useProgression(history: WorkoutSession[]): ExerciseProgression[]
     });
 
     return entries.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
-  }, [history]);
+  }, [history, templates, experience]);
 }

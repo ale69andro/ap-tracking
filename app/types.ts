@@ -52,6 +52,10 @@ export type TemplateExercise = {
   sets?: number;
   /** Target reps pre-filled in each set (undefined on legacy templates → empty) */
   targetReps?: number;
+  /** Double progression: lower bound of the rep range (e.g. 5 in "5–8") */
+  targetRepsMin?: number;
+  /** Double progression: upper bound of the rep range (e.g. 8 in "5–8") */
+  targetRepsMax?: number;
   /** Rest time pre-filled in each set (undefined on legacy templates → 60s) */
   restSeconds?: number;
   /**

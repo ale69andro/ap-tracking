@@ -406,7 +406,7 @@ export default function Home() {
     clearPlan: clearTrainingPlan,
   } = useTrainingPlan(userId);
 
-  const progressions = useProgression(history);
+  const progressions = useProgression(history, templates, profile?.experience);
 
   // ── Coach test overrides (dev only) ───────────────────────────────────────
   const activeScenario = COACH_TEST_SCENARIOS.find((s) => s.id === coachTest.scenarioId) ?? null;

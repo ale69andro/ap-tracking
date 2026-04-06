@@ -1,6 +1,6 @@
 import type { ExerciseSet, WorkoutSession, ExerciseSession } from "@/app/types";
 import { calculate1RM } from "@/lib/analysis/calculate1RM";
-import { getSessionDate } from "@/app/hooks/useWorkout";
+import { getSessionDate } from "@/app/lib/dateUtils";
 
 /**
  * Returns only completed working sets (excludes warm-ups, incomplete sets,

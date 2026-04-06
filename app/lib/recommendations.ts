@@ -1,7 +1,30 @@
-import type { ExerciseSession, ExerciseTrend, NextTarget } from "@/app/types";
+import type { Equipment, ExerciseSession, ExerciseTrend, NextTarget } from "@/app/types";
 
 /** Standard smallest plate increment (kg). */
 const PLATE = 2.5;
+
+/** Per-equipment default load increment (kg). */
+const EQUIPMENT_INCREMENTS: Record<Equipment, number> = {
+  Barbell:    2.5,
+  "EZ Bar":   2.5,
+  Smith:      2.5,
+  Dumbbell:   2.0,
+  Kettlebell: 4.0,
+  Cable:      2.5,
+  Machine:    2.5,
+  Bodyweight: 0,
+};
+
+/** Returns the appropriate load increment for the given equipment type. */
+export function getIncrement(equipment: Equipment): number {
+  return EQUIPMENT_INCREMENTS[equipment];
+}
+
+interface DoubleProgressionOptions {
+  repRangeMin: number;
+  repRangeMax: number;
+  increment:   number;
+}
 
 /**
  * Counts how many trailing sessions have the same topWeight AND topReps as the
@@ -26,7 +49,12 @@ export function countFlatSessions(sessions: ExerciseSession[]): number {
  * Computes a concrete next-session target based on the exercise's trend and
  * recent session data.
  *
- * Priority:
+ * When `options` is provided (repRangeMin, repRangeMax, increment), double
+ * progression logic takes priority over trend-based logic:
+ *   - reps < repRangeMax → same weight, +1 rep
+ *   - reps >= repRangeMax → +increment kg, reset to repRangeMin
+ *
+ * Trend-based fallback priority (when no options):
  *  - up   → add one plate increment, maintain rep range
  *  - flat → if stagnant for 3+ sessions push weight; otherwise push reps first
  *  - down → reduce weight slightly, maintain reps
@@ -37,6 +65,7 @@ export function countFlatSessions(sessions: ExerciseSession[]): number {
 export function computeNextTarget(
   sessions: ExerciseSession[],
   trend: ExerciseTrend,
+  options?: DoubleProgressionOptions,
 ): NextTarget | null {
   if (sessions.length === 0) return null;
 
@@ -45,6 +74,33 @@ export function computeNextTarget(
   const r = last.topReps;
   if (w <= 0 || r <= 0) return null;
 
+  // ── Double Progression ───────────────────────────────────────────────────────
+  if (
+    options !== undefined &&
+    options.repRangeMin > 0 &&
+    options.repRangeMax > options.repRangeMin
+  ) {
+    if (r < options.repRangeMax) {
+      // Still room in the rep range — push reps, hold weight
+      return {
+        weight:  w,
+        repsMin: r + 1,
+        repsMax: r + 1,
+        note:    "Same weight — add 1 rep",
+      };
+    } else {
+      // Hit the ceiling — add increment, reset to lower bound
+      const inc = options.increment > 0 ? options.increment : PLATE;
+      return {
+        weight:  +(w + inc).toFixed(2),
+        repsMin: options.repRangeMin,
+        repsMax: options.repRangeMin,
+        note:    `+${inc} kg — reset to ${options.repRangeMin} reps`,
+      };
+    }
+  }
+
+  // ── Trend-based fallback ─────────────────────────────────────────────────────
   if (trend === "up") {
     return {
       weight:   w + PLATE,

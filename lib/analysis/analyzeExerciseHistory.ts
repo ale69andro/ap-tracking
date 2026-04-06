@@ -1,7 +1,8 @@
 import type { ExerciseSession, ExerciseAnalysisResult } from "@/app/types";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
-import { computeNextTarget } from "@/app/lib/recommendations";
+import { computeNextTarget, getIncrement } from "@/app/lib/recommendations";
 import { interpretProgression } from "@/lib/analysis/interpretProgression";
+import { findBuiltIn } from "@/app/constants/exercises";
 
 // ── Per-session classification thresholds ────────────────────────────────────
 const E1RM_CLEARLY_UP   =  0.015;  // >= +1.5%
@@ -65,6 +66,7 @@ function buildReason(
 export function analyzeExerciseHistory(
   sessions: ExerciseSession[],
   exerciseName: string,
+  repRange?: { min: number; max: number },
 ): ExerciseAnalysisResult {
   const relevant = sessions.slice(-5);
   const confidence = getConfidence(relevant.length);
@@ -95,10 +97,12 @@ export function analyzeExerciseHistory(
   const e1RMDelta =
     currentE1RM && previousE1RM ? (currentE1RM - previousE1RM) / previousE1RM : null;
 
-  // Volume delta: requires same workout context to be meaningful.
-  // ExerciseSession has no context field (trainingDayIndex etc.) to verify this,
-  // so we omit the delta to avoid misleading cross-context comparisons.
-  const volumeDeltaPct = null;
+  // Volume delta: last session vs. previous session.
+  // Same cross-context caveat as e1RM delta — directional signal, not a controlled comparison.
+  const volumeDeltaPct: number | null =
+    previous && previous.totalVolume > 0
+      ? (current.totalVolume - previous.totalVolume) / previous.totalVolume
+      : null;
 
   // ── Trend classification ─────────────────────────────────────────────────────
   // Explicit signal-based rules. Evaluated in priority order.
@@ -147,7 +151,15 @@ export function analyzeExerciseHistory(
     : trend === "regressing" ? "down" as const
     : trend === "mixed"      ? "mixed" as const
     : "flat" as const;
-  const nextTarget = computeNextTarget(relevant, trendKey);
+  const builtIn  = findBuiltIn(exerciseName);
+  const dpOptions = repRange
+    ? {
+        repRangeMin: repRange.min,
+        repRangeMax: repRange.max,
+        increment:   builtIn?.equipment ? getIncrement(builtIn.equipment) : 2.5,
+      }
+    : undefined;
+  const nextTarget = computeNextTarget(relevant, trendKey, dpOptions);
 
   const suggestedRepRange = nextTarget
     ? nextTarget.repsMin === nextTarget.repsMax
