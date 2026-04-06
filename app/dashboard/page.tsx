@@ -5,6 +5,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type D
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import ExerciseCard from "../components/ExerciseCard";
+import FocusedExerciseOverlay from "../components/FocusedExerciseOverlay";
 import ProgressionCard from "../components/ProgressionCard";
 import ExerciseDetailSheet from "../components/ExerciseDetailSheet";
 import WorkoutTimer from "../components/WorkoutTimer";
@@ -18,6 +19,7 @@ import ProfileSetupScreen from "../components/ProfileSetupScreen";
 import ProfileEditSheet from "../components/ProfileEditSheet";
 import LevelBadge from "../components/LevelBadge";
 import { useWorkout, getSessionDate } from "../hooks/useWorkout";
+import { useFocusedExercise } from "../hooks/useFocusedExercise";
 import { getExerciseSuggestion } from "@/lib/analysis/getWorkoutSuggestion";
 import { useXp } from "../hooks/useXp";
 import { useProfile } from "../hooks/useProfile";
@@ -352,6 +354,21 @@ export default function Home() {
     !checkInDismissed)
     || checkInConfirming);
 
+  const workoutActive = activeWorkout !== null;
+  useWakeLock(workoutActive && profile?.keepScreenOn !== false);
+  const exercises     = activeWorkout?.exercises ?? [];
+
+  const {
+    isOpen: isFocused,
+    focusedIndex,
+    focusedExercise,
+    openFocused,
+    closeFocused,
+    goToIndex: goToFocused,
+    canGoNext: focusedCanGoNext,
+    canGoPrev: focusedCanGoPrev,
+  } = useFocusedExercise(exercises);
+
   // Lock body scroll whenever any sheet or modal overlay is visible.
   // Must be after useWorkout so completedSession is initialised.
   useScrollLock(
@@ -363,7 +380,8 @@ export default function Home() {
     !!selectedExercise ||
     !!selectedWorkout  ||
     !!pendingExit      ||
-    !!completedSession
+    !!completedSession ||
+    isFocused
   );
 
   // Scroll to top whenever a new workout is started.
@@ -372,10 +390,6 @@ export default function Home() {
   useEffect(() => {
     if (activeWorkout?.id) window.scrollTo(0, 0);
   }, [activeWorkout?.id]);
-
-  const workoutActive = activeWorkout !== null;
-  useWakeLock(workoutActive && profile?.keepScreenOn !== false);
-  const exercises     = activeWorkout?.exercises ?? [];
   const incompleteSetsCount = activeWorkout?.exercises.reduce(
     (n, ex) => n + ex.sets.filter((s) => !s.completed).length, 0
   ) ?? 0;
@@ -646,6 +660,38 @@ export default function Home() {
         />
       )}
 
+      {isFocused && focusedExercise && (() => {
+        const focusedProg = effectiveProgressions.find((p) => p.name === focusedExercise.exerciseName);
+        const timerExerciseName = activeTimer
+          ? exercises.find((ex) => ex.sets.some((s) => s.id === activeTimer.setId))?.exerciseName
+          : undefined;
+        return (
+          <FocusedExerciseOverlay
+            exercise={focusedExercise}
+            focusedIndex={focusedIndex}
+            totalCount={exercises.length}
+            canGoNext={focusedCanGoNext}
+            canGoPrev={focusedCanGoPrev}
+            activeTimer={activeTimer}
+            progression={focusedProg}
+            suggestion={getExerciseSuggestion(focusedExercise) ?? undefined}
+            onDeleteSet={(setId) => deleteSet(focusedExercise.id, setId)}
+            onAddSet={() => addSet(focusedExercise.id)}
+            onUpdateSet={(setId, field, value) => updateSet(focusedExercise.id, setId, field, value)}
+            onCompleteSet={(setId) => handleCompleteSet(focusedExercise.id, setId)}
+            onUncompleteSet={(setId) => uncompleteSet(focusedExercise.id, setId)}
+            onClearTimer={clearTimer}
+            onAdjustTimer={adjustTimer}
+            onExtendTimer={extendTimer}
+            onUpdateExerciseRest={(field, value) => updateExerciseRest(focusedExercise.id, field, value)}
+            onClose={closeFocused}
+            onNavigate={goToFocused}
+            onViewDetail={focusedProg ? () => { closeFocused(); setSelectedExercise(focusedProg); } : undefined}
+            timerExerciseName={timerExerciseName}
+          />
+        );
+      })()}
+
       {completedSession && (
         <div className="fixed inset-0 z-50 bg-zinc-950 overflow-y-auto">
           <WorkoutSummaryScreen session={completedSession} onDone={handleDismissSummary} skippedSets={skippedSetsCount} previousSessions={history.slice(1)} prs={sessionPRs} />
@@ -896,7 +942,7 @@ export default function Home() {
                         onExtendTimer={extendTimer}
                         onUpdateExerciseRest={(field, value) => updateExerciseRest(exercise.id, field, value)}
                         suggestion={getExerciseSuggestion(exercise) ?? undefined}
-                        onOpenDetail={prog ? () => setSelectedExercise(prog) : undefined}
+                        onOpenDetail={() => openFocused(exercise.id)}
                       />
                     );
                   })}

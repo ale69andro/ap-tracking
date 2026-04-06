@@ -5,94 +5,51 @@ import SetRow from "./SetRow";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
 import { GripVertical, Trash2, ChevronUp, ChevronDown, Plus } from "lucide-react";
 
-type Props = {
+// ─── ExerciseCardBody ─────────────────────────────────────────────────────────
+// Shared between ExerciseCard (workout list) and FocusedExerciseOverlay.
+// Contains coach block, set rows, suggestion, add-set, and rest presets.
+// Does NOT include the card header (exercise name, drag handle, delete).
+
+export type ExerciseCardBodyProps = {
   exercise: SessionExercise;
   activeTimer: ActiveTimer | null;
-  /** Last recorded topWeight + topReps for this exercise, from history. */
-  lastSession?: { topWeight: number; topReps: number };
   progression?: ExerciseProgression;
-  onDelete: () => void;
+  suggestion?: WorkoutSuggestion;
   onDeleteSet: (setId: string) => void;
   onAddSet: () => void;
   onUpdateSet: (setId: string, field: keyof Omit<ExerciseSet, "id" | "completed" | "completedAt">, value: string) => void;
   onCompleteSet: (setId: string) => void;
-  onUpdateExerciseRest: (field: "warmupRestSeconds" | "workingRestSeconds", value: number) => void;
   onUncompleteSet: (setId: string) => void;
   onClearTimer: () => void;
   onAdjustTimer: (delta: number) => void;
   onExtendTimer: (seconds: number) => void;
-  suggestion?: WorkoutSuggestion;
-  onOpenDetail?: () => void;
-  dragHandleProps?: HTMLAttributes<HTMLElement>;
+  onUpdateExerciseRest: (field: "warmupRestSeconds" | "workingRestSeconds", value: number) => void;
+  /** When true (focused overlay), the inline RestTimer inside SetRow is suppressed.
+   *  The overlay renders its own sticky bottom timer instead. */
+  suppressInlineTimer?: boolean;
 };
 
-export default function ExerciseCard({
+export function ExerciseCardBody({
   exercise,
   activeTimer,
-  lastSession,
   progression,
-  onDelete,
+  suggestion,
   onDeleteSet,
   onAddSet,
   onUpdateSet,
   onCompleteSet,
-  suggestion,
   onUncompleteSet,
   onClearTimer,
   onAdjustTimer,
   onExtendTimer,
   onUpdateExerciseRest,
-  onOpenDetail,
-  dragHandleProps,
-}: Props) {
+  suppressInlineTimer = false,
+}: ExerciseCardBodyProps) {
   const [showRest, setShowRest] = useState(false);
+  const timerForRow = suppressInlineTimer ? null : activeTimer;
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800/80 rounded-2xl overflow-hidden">
-
-      {/* Exercise header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-4 border-b border-zinc-800/60">
-        <div className="min-w-0">
-          {onOpenDetail ? (
-            <button
-              onClick={onOpenDetail}
-              className="text-sm font-bold text-white tracking-wide truncate text-left px-1.5 py-0.5 -mx-1.5 rounded-md border border-transparent hover:border-zinc-700 hover:bg-zinc-800/40 active:scale-[0.98] active:bg-zinc-800/60 transition-colors transition-transform cursor-pointer"
-            >
-              {exercise.exerciseName}
-            </button>
-          ) : (
-            <h3 className="text-sm font-bold text-white tracking-wide truncate">{exercise.exerciseName}</h3>
-          )}
-          {exercise.muscleGroups.length > 0 && (
-            <p className="hidden sm:block text-[11px] text-zinc-600 mt-0.5 tracking-wide">
-              {exercise.muscleGroups.join(" · ")}
-            </p>
-          )}
-          {lastSession && lastSession.topWeight > 0 && lastSession.topReps > 0 && (
-            <p className="hidden sm:block text-[11px] text-zinc-700 mt-0.5 tabular-nums">
-              Last · {lastSession.topWeight} kg × {lastSession.topReps}
-            </p>
-          )}
-        </div>
-        <div className="ml-3 shrink-0 flex items-center gap-1">
-          <div
-            {...dragHandleProps}
-            style={{ touchAction: "none" }}
-            className="text-zinc-600 hover:text-zinc-400 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors cursor-grab active:cursor-grabbing select-none"
-            title="Drag to reorder"
-          >
-            <GripVertical size={16} />
-          </div>
-          <button
-            onClick={onDelete}
-            className="text-zinc-700 hover:text-red-500 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
-            title="Delete exercise"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
-      </div>
-
+    <>
       {/* Coach block */}
       {progression && (() => {
         const targets = getExerciseTargets(progression);
@@ -132,7 +89,6 @@ export default function ExerciseCard({
 
       {/* Sets */}
       <div className="px-3 pt-3 pb-1">
-
         {/* Column labels */}
         <div className="grid grid-cols-[2rem_1fr_1fr_3.5rem] gap-2 text-[10px] text-zinc-500 font-medium uppercase tracking-widest px-2 mb-1">
           <span></span>
@@ -153,7 +109,7 @@ export default function ExerciseCard({
                   set={set}
                   index={displayIndex}
                   isActive={idx === activeIdx}
-                  activeTimer={activeTimer}
+                  activeTimer={timerForRow}
                   onUpdate={(field, value) => onUpdateSet(set.id, field, value)}
                   onComplete={() => onCompleteSet(set.id)}
                   onUncomplete={() => onUncompleteSet(set.id)}
@@ -225,6 +181,101 @@ export default function ExerciseCard({
           </div>
         )}
       </div>
+    </>
+  );
+}
+
+// ─── ExerciseCard ─────────────────────────────────────────────────────────────
+// Full card used in the workout list. Adds the header (name, drag, delete)
+// around the shared ExerciseCardBody.
+
+type Props = ExerciseCardBodyProps & {
+  lastSession?: { topWeight: number; topReps: number };
+  onDelete: () => void;
+  onOpenDetail?: () => void;
+  dragHandleProps?: HTMLAttributes<HTMLElement>;
+};
+
+export default function ExerciseCard({
+  exercise,
+  activeTimer,
+  lastSession,
+  progression,
+  onDelete,
+  onDeleteSet,
+  onAddSet,
+  onUpdateSet,
+  onCompleteSet,
+  suggestion,
+  onUncompleteSet,
+  onClearTimer,
+  onAdjustTimer,
+  onExtendTimer,
+  onUpdateExerciseRest,
+  onOpenDetail,
+  dragHandleProps,
+}: Props) {
+  return (
+    <div className="bg-zinc-900 border border-zinc-800/80 rounded-2xl overflow-hidden">
+
+      {/* Exercise header */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-4 border-b border-zinc-800/60">
+        <div className="min-w-0">
+          {onOpenDetail ? (
+            <button
+              onClick={onOpenDetail}
+              className="text-sm font-bold text-white tracking-wide truncate text-left px-1.5 py-0.5 -mx-1.5 rounded-md border border-transparent hover:border-zinc-700 hover:bg-zinc-800/40 active:scale-[0.98] active:bg-zinc-800/60 transition-colors transition-transform cursor-pointer"
+            >
+              {exercise.exerciseName}
+            </button>
+          ) : (
+            <h3 className="text-sm font-bold text-white tracking-wide truncate">{exercise.exerciseName}</h3>
+          )}
+          {exercise.muscleGroups.length > 0 && (
+            <p className="hidden sm:block text-[11px] text-zinc-600 mt-0.5 tracking-wide">
+              {exercise.muscleGroups.join(" · ")}
+            </p>
+          )}
+          {lastSession && lastSession.topWeight > 0 && lastSession.topReps > 0 && (
+            <p className="hidden sm:block text-[11px] text-zinc-700 mt-0.5 tabular-nums">
+              Last · {lastSession.topWeight} kg × {lastSession.topReps}
+            </p>
+          )}
+        </div>
+        <div className="ml-3 shrink-0 flex items-center gap-1">
+          <div
+            {...dragHandleProps}
+            style={{ touchAction: "none" }}
+            className="text-zinc-600 hover:text-zinc-400 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors cursor-grab active:cursor-grabbing select-none"
+            title="Drag to reorder"
+          >
+            <GripVertical size={16} />
+          </div>
+          <button
+            onClick={onDelete}
+            className="text-zinc-700 hover:text-red-500 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
+            title="Delete exercise"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </div>
+
+      <ExerciseCardBody
+        exercise={exercise}
+        activeTimer={activeTimer}
+        progression={progression}
+        suggestion={suggestion}
+        onDeleteSet={onDeleteSet}
+        onAddSet={onAddSet}
+        onUpdateSet={onUpdateSet}
+        onCompleteSet={onCompleteSet}
+        onUncompleteSet={onUncompleteSet}
+        onClearTimer={onClearTimer}
+        onAdjustTimer={onAdjustTimer}
+        onExtendTimer={onExtendTimer}
+        onUpdateExerciseRest={onUpdateExerciseRest}
+      />
     </div>
   );
 }
