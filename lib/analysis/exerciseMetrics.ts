@@ -87,6 +87,7 @@ export function getExerciseSessionsFromHistory(
       topReps: topSet.reps,
       totalVolume,
       score,
+      setCount: workingSets.length,
     });
   });
 

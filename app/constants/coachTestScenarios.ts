@@ -51,7 +51,7 @@ function e1rm(w: number, r: number): number {
 }
 
 function session(date: string, w: number, r: number): ExerciseSession {
-  return { date, topWeight: w, topReps: r, totalVolume: w * r * 3, score: e1rm(w, r) };
+  return { date, topWeight: w, topReps: r, totalVolume: w * r * 3, score: e1rm(w, r), setCount: 3 };
 }
 
 /**
