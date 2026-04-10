@@ -1,6 +1,15 @@
-import type { ExerciseProgression, ExerciseSession, ExerciseTrend } from "@/app/types";
+import type { ExerciseProgression, ExerciseSession, ExerciseTrend, ExerciseRecommendationAction } from "@/app/types";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
+import { getExerciseRecommendation } from "@/lib/analysis/getExerciseRecommendation";
 import SparkLine from "./SparkLine";
+
+const ACTION_LABEL: Partial<Record<ExerciseRecommendationAction, string>> = {
+  increase_load: "Add weight",
+  increase_reps: "Build reps",
+  hold:          "Hold load",
+  reduce_load:   "Reduce load",
+  deload:        "Deload",
+};
 
 const TREND_CONFIG: Record<ExerciseTrend, { label: string; color: string; bg: string; arrow: string; spark: string }> = {
   up:    { label: "Progressing",     color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", arrow: "↑", spark: "#10b981" },
@@ -60,6 +69,10 @@ export default function ProgressionCard({ progression, onTap }: Props) {
   const t     = TREND_CONFIG[resolvedTrendKey(progression)];
   const delta = buildDelta(recentSessions);
 
+  // Central recommendation engine — no repRange here (trend-based fallback).
+  // recentSessions are already filtered to working sets by useProgression.
+  const recommendation = getExerciseRecommendation({ exerciseName: name, sessions: recentSessions, repRange: progression.repRange });
+
   return (
     <button
       onClick={onTap}
@@ -117,6 +130,28 @@ export default function ProgressionCard({ progression, onTap }: Props) {
       <p className="text-[11px] text-zinc-600 font-medium tabular-nums">
         Best — <span className="text-zinc-400 font-bold">{bestWeight > 0 ? `${bestWeight} kg` : "—"}</span>
       </p>
+
+      {/* Next session target — from recommendation engine */}
+      {recommendation.action !== "new" && recommendation.confidence !== "low" && recommendation.targetWeight !== null && (
+        <div className="mt-2 pt-2 border-t border-zinc-800/60">
+          <div className="flex items-baseline justify-between">
+            <p className="text-[10px] text-zinc-600 font-semibold uppercase tracking-widest">
+              {ACTION_LABEL[recommendation.action] ?? "Next"}
+            </p>
+            <p className="text-[12px] font-bold tabular-nums text-zinc-200">
+              {recommendation.targetWeight} kg × {
+                recommendation.targetRepsMin === recommendation.targetRepsMax
+                  ? recommendation.targetRepsMin
+                  : `${recommendation.targetRepsMin}–${recommendation.targetRepsMax}`
+              }
+            </p>
+          </div>
+          {recommendation.setAction === "reduce_set" && recommendation.targetSets !== undefined && (
+            <p className="text-[10px] text-zinc-500 mt-0.5">Drop to {recommendation.targetSets} sets</p>
+          )}
+          <p className="text-[10px] text-zinc-600 mt-0.5 leading-snug">{recommendation.reason}</p>
+        </div>
+      )}
     </button>
   );
 }

@@ -120,10 +120,25 @@ export function useTemplates(userId: string | null) {
     setTemplates((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const updateTemplate = async (id: string, exercises: TemplateExercise[]): Promise<void> => {
+    if (!userId) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("workout_templates")
+      .update({ exercises })
+      .eq("id", id)
+      .eq("user_id", userId);
+    if (error) { console.error("Failed to update template:", error); throw error; }
+    setTemplates((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, exercises } : t))
+    );
+  };
+
   return {
     // Gate on userId so stale state from a previous session is never exposed.
     templates: userId ? templates : [],
     saveTemplate,
     deleteTemplate,
+    updateTemplate,
   };
 }

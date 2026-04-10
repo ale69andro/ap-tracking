@@ -3,6 +3,16 @@ import type { HTMLAttributes } from "react";
 import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression, WorkoutSuggestion } from "@/app/types";
 import SetRow from "./SetRow";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
+import { getExerciseRecommendation } from "@/lib/analysis/getExerciseRecommendation";
+import type { ExerciseRecommendationAction } from "@/app/types";
+
+const ACTION_LABEL: Partial<Record<ExerciseRecommendationAction, string>> = {
+  increase_load: "Add weight",
+  increase_reps: "Build reps",
+  hold:          "Hold load",
+  reduce_load:   "Reduce load",
+  deload:        "Deload",
+};
 import { GripVertical, Trash2, ChevronUp, ChevronDown, Plus } from "lucide-react";
 
 // ─── ExerciseCardBody ─────────────────────────────────────────────────────────
@@ -53,7 +63,12 @@ export function ExerciseCardBody({
       {/* Coach block */}
       {progression && (() => {
         const targets = getExerciseTargets(progression);
-        const hasData = targets.last || targets.best || targets.target;
+        const recommendation = getExerciseRecommendation({
+          exerciseName: exercise.exerciseName,
+          sessions:     progression.recentSessions,
+          repRange:     progression.repRange,
+        });
+        const hasData = targets.last || targets.best || recommendation.action !== "new";
         if (!hasData) {
           return (
             <div className="px-4 py-2 border-b border-zinc-800/40">
@@ -73,14 +88,21 @@ export function ExerciseCardBody({
                 Best · {targets.best.weight} kg × {targets.best.reps}
               </p>
             )}
-            {targets.target && (targets.target.weight != null || targets.target.repRange != null) && (
+            {recommendation.action !== "new" && recommendation.confidence !== "low" && recommendation.targetWeight !== null && (
               <div className="pt-1">
-                <p className="text-[10px] uppercase tracking-widest text-red-500 font-semibold mb-0.5">Target today</p>
-                <p className="text-[13px] font-bold text-white tabular-nums leading-tight">
-                  {targets.target.weight != null ? `${targets.target.weight} kg` : ""}
-                  {targets.target.weight != null && targets.target.repRange ? " × " : ""}
-                  {targets.target.repRange ?? ""}
+                <p className="text-[10px] uppercase tracking-widest text-red-500 font-semibold mb-0.5">
+                  {ACTION_LABEL[recommendation.action] ?? "Target today"}
                 </p>
+                <p className="text-[13px] font-bold text-white tabular-nums leading-tight">
+                  {recommendation.targetWeight} kg × {
+                    recommendation.targetRepsMin === recommendation.targetRepsMax
+                      ? recommendation.targetRepsMin
+                      : `${recommendation.targetRepsMin}–${recommendation.targetRepsMax}`
+                  }
+                </p>
+                {recommendation.setAction === "reduce_set" && recommendation.targetSets !== undefined && (
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Drop to {recommendation.targetSets} sets</p>
+                )}
               </div>
             )}
           </div>

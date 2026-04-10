@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronLeft } from "lucide-react";
+import { PasswordInput } from "@/app/components/PasswordInput";
 
 export default function SignupPage() {
   const [email, setEmail]       = useState("");
@@ -95,15 +96,12 @@ export default function SignupPage() {
             <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
               Password
             </label>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="new-password"
-              placeholder="••••••••"
               minLength={6}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 text-white placeholder-zinc-600 text-sm focus:outline-none focus:border-red-600 transition-colors"
             />
           </div>
 

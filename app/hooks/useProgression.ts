@@ -78,7 +78,7 @@ export function useProgression(
         const date  = getSessionDate(workout);
 
         const existing = map.get(exercise.exerciseName);
-        const session: ExerciseSession = { date, topWeight, topReps, totalVolume, score };
+        const session: ExerciseSession = { date, topWeight, topReps, totalVolume, score, setCount: validSets.length };
 
         if (existing) {
           existing.sessions.push(session);
@@ -116,6 +116,7 @@ export function useProgression(
         trendScore: Math.round((bestWeight / globalMax) * 100),
         lastSeen,
         analysis,
+        repRange,
       });
     });
 

@@ -2,7 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { UserProfile } from "@/app/types";
+import type {
+  UserProfile,
+  StressLevel,
+  IntensityStyle,
+  ProximityToFailure,
+  EquipmentAccess,
+  MuscleGroup,
+} from "@/app/types";
 
 type ProfileRow = {
   id: string;
@@ -15,6 +22,11 @@ type ProfileRow = {
   sleep_quality: string;
   keep_screen_on: boolean | null;
   rest_timer_sound: boolean | null;
+  stress_level: string | null;
+  intensity_style: string | null;
+  proximity_to_failure: string | null;
+  equipment_access: string | null;
+  priority_muscle_groups: string[] | null;
 };
 
 function rowToProfile(row: ProfileRow): UserProfile {
@@ -26,8 +38,13 @@ function rowToProfile(row: ProfileRow): UserProfile {
     goal:                row.goal       as UserProfile["goal"],
     trainingDaysPerWeek: row.training_days_per_week,
     sleepQuality:        row.sleep_quality as UserProfile["sleepQuality"],
-    keepScreenOn:        row.keep_screen_on  ?? true,
-    restTimerSound:      row.rest_timer_sound ?? false,
+    keepScreenOn:          row.keep_screen_on  ?? true,
+    restTimerSound:        row.rest_timer_sound ?? false,
+    stressLevel:           (row.stress_level as StressLevel) ?? undefined,
+    intensityStyle:        (row.intensity_style as IntensityStyle) ?? undefined,
+    proximityToFailure:    (row.proximity_to_failure as ProximityToFailure) ?? undefined,
+    equipmentAccess:       (row.equipment_access as EquipmentAccess) ?? undefined,
+    priorityMuscleGroups:  (row.priority_muscle_groups as MuscleGroup[]) ?? undefined,
   };
 }
 
@@ -75,9 +92,14 @@ export function useProfile(userId: string | null) {
         goal:                   data.goal,
         training_days_per_week: data.trainingDaysPerWeek,
         sleep_quality:          data.sleepQuality,
-        keep_screen_on:         data.keepScreenOn  ?? true,
-        rest_timer_sound:       data.restTimerSound ?? false,
-        updated_at:             new Date().toISOString(),
+        keep_screen_on:          data.keepScreenOn  ?? true,
+        rest_timer_sound:        data.restTimerSound ?? false,
+        stress_level:            data.stressLevel            ?? null,
+        intensity_style:         data.intensityStyle         ?? null,
+        proximity_to_failure:    data.proximityToFailure     ?? null,
+        equipment_access:        data.equipmentAccess        ?? null,
+        priority_muscle_groups:  data.priorityMuscleGroups   ?? null,
+        updated_at:              new Date().toISOString(),
       },
       { onConflict: "id" },
     );

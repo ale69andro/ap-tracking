@@ -391,7 +391,16 @@ export function useWorkout(
         workingRestSeconds: ex.restSeconds ?? 90,
       };
     });
-    setActiveWorkout({ id: uid(), name, status: "active", templateId, trainingDayIndex, startedAt: Date.now(), exercises });
+    setActiveWorkout({
+      id: uid(),
+      name,
+      status: "active",
+      templateId,
+      trainingDayIndex,
+      startedAt: Date.now(),
+      exercises,
+      originalTemplateExercises: templateExercises ? [...templateExercises] : undefined,
+    });
   };
 
   const renameWorkout = (name: string) => {
@@ -579,12 +588,54 @@ export function useWorkout(
     setHistory((prev) => prev.filter((w) => w.id !== workoutId));
   };
 
+  // ── Structure-change detection ────────────────────────────────────────────
+  //
+  // Compares current exercise names/order against the snapshot stored at
+  // session start. Count changes, name changes, and order changes all qualify.
+  // Weight, reps, rest time, and completion state do NOT count.
+
+  const structureChanged: boolean = (() => {
+    const workout = userId ? activeWorkout : null;
+    if (!workout?.templateId || !workout.originalTemplateExercises) return false;
+    const original = workout.originalTemplateExercises.map((e) => e.name);
+    const current  = workout.exercises.map((e) => e.exerciseName);
+    if (original.length !== current.length) return true;
+    return original.some((name, i) => name !== current[i]);
+  })();
+
+  /**
+   * Builds the TemplateExercise[] to write back when the user confirms
+   * "Update Plan". Spreads the original template exercise as base (preserving
+   * targetRepsMin/Max, startWeight, targetReps) then overlays only the fields
+   * that SessionExercise can safely provide.
+   *
+   * Matching uses exercise name as the key (V1 fallback — TemplateExercise has
+   * no stable id field, only name).
+   */
+  const buildStructuralExercises = (): TemplateExercise[] => {
+    const workout = userId ? activeWorkout : null;
+    if (!workout) return [];
+    const originals = workout.originalTemplateExercises ?? [];
+    return workout.exercises.map((ex) => {
+      const original = originals.find((o) => o.name === ex.exerciseName) ?? {};
+      return {
+        ...original,
+        name:         ex.exerciseName,
+        muscleGroups: ex.muscleGroups,
+        notes:        ex.notes,
+        sets:         ex.sets.length,
+      };
+    });
+  };
+
   return {
     // Gate on userId so stale state from a previous session is never exposed.
     activeWorkout:    userId ? activeWorkout : null,
     completedSession: userId ? completedSession : null,
     history:          userId ? history.filter((s) => s.status === "completed") : [],
     activeTimer,
+    structureChanged,
+    buildStructuralExercises,
     addExercise,
     deleteExercise,
     moveExercise,

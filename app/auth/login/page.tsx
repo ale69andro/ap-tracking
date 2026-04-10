@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { PasswordInput } from "@/app/components/PasswordInput";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -60,14 +61,11 @@ export default function LoginPage() {
             <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
               Password
             </label>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              placeholder="••••••••"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 text-white placeholder-zinc-600 text-sm focus:outline-none focus:border-red-600 transition-colors"
             />
           </div>
 

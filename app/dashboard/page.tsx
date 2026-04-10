@@ -33,6 +33,7 @@ import { useScrollLock } from "../hooks/useScrollLock";
 import { useWakeLock } from "../hooks/useWakeLock";
 import AddExerciseModal from "../components/AddExerciseModal";
 import ConfirmModal from "../components/ConfirmModal";
+import UpdatePlanModal from "../components/UpdatePlanModal";
 import TrainingDayCard from "../components/TrainingDayCard";
 import TrainingPlanSheet from "../components/TrainingPlanSheet";
 import DailyCheckIn from "../components/DailyCheckIn";
@@ -159,6 +160,9 @@ export default function Home() {
   const [pendingTemplateDayId, setPendingTemplateDayId] = useState<string | null>(null);
   const [coachTest, setCoachTest] = useState<CoachTestState>(COACH_TEST_INITIAL);
   const [skippedSetsCount, setSkippedSetsCount] = useState(0);
+  const [showUpdatePlanModal, setShowUpdatePlanModal] = useState(false);
+  const [updatePlanError, setUpdatePlanError]         = useState(false);
+  const [updatingPlan, setUpdatingPlan]               = useState(false);
   const [checkInDismissed,  setCheckInDismissed]  = useState(false);
   const [checkInConfirming, setCheckInConfirming] = useState(false);
   const [prFlash, setPrFlash] = useState<{ type: PRType; exerciseName: string; value: number } | null>(null);
@@ -195,6 +199,8 @@ export default function Home() {
     completedSession,
     history,
     activeTimer,
+    structureChanged,
+    buildStructuralExercises,
     addExercise,
     deleteExercise,
     reorderExercises,
@@ -406,7 +412,7 @@ export default function Home() {
     if (oldIndex !== -1 && newIndex !== -1) reorderExercises(oldIndex, newIndex);
   };
 
-  const { templates, saveTemplate, deleteTemplate } = useTemplates(userId);
+  const { templates, saveTemplate, deleteTemplate, updateTemplate } = useTemplates(userId);
   const { userExercises, createUserExercise } = useExerciseLibrary(userId);
 
   const {
@@ -534,6 +540,12 @@ export default function Home() {
   }, [completedSession, markDayCompleted]);
 
   const handleConfirmExit = async () => {
+    if (pendingExit === "save" && structureChanged && activeWorkout?.templateId) {
+      // Intercept: show the Update Plan modal instead of saving immediately.
+      setPendingExit(null);
+      setShowUpdatePlanModal(true);
+      return;
+    }
     setConfirming(true);
     setSaveError(false);
     try {
@@ -546,6 +558,40 @@ export default function Home() {
       setSaveError(true);
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const handleUpdatePlan = async () => {
+    setUpdatingPlan(true);
+    setUpdatePlanError(false);
+    // Capture before saveWorkout nullifies activeWorkout.
+    const templateId          = activeWorkout?.templateId;
+    const structuralExercises = buildStructuralExercises();
+    try {
+      const skipped = await saveWorkout();
+      setSkippedSetsCount(skipped ?? 0);
+      if (templateId) {
+        await updateTemplate(templateId, structuralExercises);
+      }
+      setShowUpdatePlanModal(false);
+    } catch {
+      setUpdatePlanError(true);
+    } finally {
+      setUpdatingPlan(false);
+    }
+  };
+
+  const handleKeepPlan = async () => {
+    setUpdatingPlan(true);
+    setUpdatePlanError(false);
+    try {
+      const skipped = await saveWorkout();
+      setSkippedSetsCount(skipped ?? 0);
+      setShowUpdatePlanModal(false);
+    } catch {
+      setUpdatePlanError(true);
+    } finally {
+      setUpdatingPlan(false);
     }
   };
 
@@ -657,6 +703,16 @@ export default function Home() {
           error={saveError ? "Couldn't save workout. Please try again. Your workout is still here." : undefined}
           onConfirm={handleConfirmExit}
           onCancel={() => { setPendingExit(null); setSaveError(false); }}
+        />
+      )}
+
+      {showUpdatePlanModal && (
+        <UpdatePlanModal
+          loading={updatingPlan}
+          error={updatePlanError ? "Couldn't save. Please try again. Your workout is still here." : undefined}
+          onUpdatePlan={handleUpdatePlan}
+          onKeepPlan={handleKeepPlan}
+          onCancel={() => { setShowUpdatePlanModal(false); setUpdatePlanError(false); }}
         />
       )}
 

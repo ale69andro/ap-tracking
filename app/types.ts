@@ -36,6 +36,8 @@ export type WorkoutSession = {
   durationSeconds?: number;
   date?: string;           // legacy: pre-formatted display date for old records
   exercises: SessionExercise[];
+  /** Snapshot of the template's exercise list at session start — used for structureChanged detection. Only set when started from a template. */
+  originalTemplateExercises?: TemplateExercise[];
 };
 
 export type WorkoutTemplate = {
@@ -155,6 +157,8 @@ export type ExerciseSession = {
   topReps: number;
   totalVolume: number;
   score: number;
+  /** Number of completed working sets in this session. */
+  setCount: number;
 };
 
 export type ExerciseProgression = {
@@ -166,6 +170,8 @@ export type ExerciseProgression = {
   trendScore: number;
   lastSeen: string;
   analysis?: ExerciseAnalysisResult;
+  /** Structured rep range from the template — enables double-progression ceiling logic. */
+  repRange?: { min: number; max: number };
 };
 
 export type NextTarget = {
@@ -225,6 +231,37 @@ export type ExerciseAnalysisResult = {
   interpretation?: ProgressionInterpretation;
 };
 
+// ─── Training Profile Input Types ─────────────────────────────────────────────
+
+export type StressLevel = "low" | "moderate" | "high";
+export type IntensityStyle = "heavy_low_rep" | "moderate" | "mixed" | "auto";
+export type ProximityToFailure = "technical_failure" | "one_to_two_rir" | "three_to_four_rir" | "very_conservative";
+export type EquipmentAccess = "full_gym" | "dumbbells_only" | "barbell_only" | "home_gym" | "bodyweight_only";
+export type LoadProgressionStyle = "linear" | "double_progression" | "wave_loading";
+
+export type MuscleGroup =
+  | "Chest"
+  | "Back"
+  | "Shoulders"
+  | "Arms"
+  | "Quads"
+  | "Hamstrings"
+  | "Glutes"
+  | "Calves"
+  | "Core";
+
+// ─── Training Profile (derived/computed — never stored in DB) ─────────────────
+
+export type TrainingProfile = {
+  /** 0–100 recovery capacity score derived from sleep, stress, frequency, and sleep quality. */
+  recoveryScore: number;
+  loadProgressionStyle: LoadProgressionStyle;
+  priorityMuscleGroups: MuscleGroup[];
+  intensityStyle: IntensityStyle;
+  proximityToFailure: ProximityToFailure;
+  equipmentAccess: EquipmentAccess;
+};
+
 // ─── User Profile ─────────────────────────────────────────────────────────────
 
 export type UserProfile = {
@@ -237,6 +274,11 @@ export type UserProfile = {
   sleepQuality: "low" | "medium" | "high";
   keepScreenOn?:    boolean;
   restTimerSound?:  boolean;
+  stressLevel?: StressLevel;
+  intensityStyle?: IntensityStyle;
+  proximityToFailure?: ProximityToFailure;
+  equipmentAccess?: EquipmentAccess;
+  priorityMuscleGroups?: MuscleGroup[];
 };
 
 // ─── Training Plan ────────────────────────────────────────────────────────────
@@ -268,6 +310,59 @@ export type WorkoutSuggestion = {
   type: 'next_set';
   title: string;
   detail: string;
+};
+
+// ─── Exercise Recommendation Engine ──────────────────────────────────────────
+
+/**
+ * What the engine recommends doing next session for a given exercise.
+ * Derived from trend, interpretation status, and double-progression state.
+ */
+export type ExerciseRecommendationAction =
+  | "increase_load"   // push more weight next session
+  | "increase_reps"   // same weight, aim for more reps
+  | "hold"            // repeat current load/rep range
+  | "reduce_load"     // step back on weight, rebuild
+  | "deload"          // significant reduction — sustained regression detected
+  | "form_focus"      // fix execution quality before adding load
+  | "new";            // no history yet
+
+/**
+ * 4-state roll-up of exercise progression state.
+ * Simpler than ProgressionStatus — intended for UI and action routing.
+ */
+export type ExerciseRecommendationStatus =
+  | "progressing"
+  | "stagnating"
+  | "regressing"
+  | "new";
+
+/**
+ * Single structured output of the Exercise Recommendation Engine.
+ * One object per exercise — contains everything needed for in-workout hints,
+ * progression cards, and future plan-builder integration.
+ */
+export type ExerciseCoachRecommendation = {
+  exerciseName: string;
+  /** Recommended load for next session. Null only when no history exists. */
+  targetWeight: number | null;
+  /** Structured rep targets — never stored as a string. */
+  targetRepsMin: number;
+  targetRepsMax: number;
+  /** Set count recommendation — omitted when not determinable. */
+  targetSets?: number;
+  /** Set volume direction: only emitted at medium/high confidence. */
+  setAction?: "hold_sets" | "add_set" | "reduce_set";
+  /** Short UI-ready explanation for the set recommendation. */
+  setReason?: string;
+  action: ExerciseRecommendationAction;
+  status: ExerciseRecommendationStatus;
+  /** Single confidence model: 0–2 sessions → low, 3 → medium, 4+ → high. */
+  confidence: "low" | "medium" | "high";
+  /** Short, UI-ready explanation of why this recommendation was made. */
+  reason: string;
+  /** Longer personalised coaching message — only present when UserProfile is provided. */
+  coachMessage?: string;
 };
 
 // ─── Backward-compat alias ────────────────────────────────────────────────────
