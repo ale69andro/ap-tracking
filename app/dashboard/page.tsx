@@ -43,6 +43,7 @@ import { COACH_TEST_SCENARIOS, COACH_TEST_INITIAL } from "../constants/coachTest
 import type { CoachTestState } from "../constants/coachTestScenarios";
 import { CHECK_IN_PRESETS } from "../constants/checkInTestPresets";
 import CoachTestPanel from "../components/CoachTestPanel";
+import PrescriptionQAPanel from "../components/dev/PrescriptionQAPanel";
 import PRToast, { type PRType } from "../components/PRToast";
 import { PRESET_TEMPLATES } from "../constants/presetTemplates";
 import type { Equipment, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate, XpEventType } from "../types";
@@ -51,6 +52,7 @@ import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTa
 import { useEffect } from "react";
 import { useDailyCheckIn } from "../hooks/useDailyCheckIn";
 import type { DayType, EnergyLevel } from "../hooks/useDailyCheckIn";
+import { usePrescriptions } from "../hooks/usePrescriptions";
 import { ChevronRight, Plus as LucidePlus } from "lucide-react";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -92,7 +94,6 @@ function IconProgress() {
 type SortableExerciseCardProps = {
   exercise: SessionExercise;
   activeTimer: ActiveTimer | null;
-  lastSession?: { topWeight: number; topReps: number };
   progression?: ExerciseProgression;
   onDelete: () => void;
   onDeleteSet: (setId: string) => void;
@@ -105,7 +106,8 @@ type SortableExerciseCardProps = {
   onExtendTimer: (seconds: number) => void;
   onUpdateExerciseRest: (field: "warmupRestSeconds" | "workingRestSeconds", value: number) => void;
   suggestion?: import("../types").WorkoutSuggestion;
-  onOpenDetail?: () => void;
+  onOpenHistory?: () => void;
+  onOpenFocusMode?: () => void;
 };
 
 function SortableExerciseCard(props: SortableExerciseCardProps) {
@@ -220,6 +222,8 @@ export default function Home() {
     extendTimer,
     dismissSummary,
   } = useWorkout(userId, profile?.restTimerSound ?? false, (w) => onSaveSuccessRef.current(w));
+
+  const { prescriptions, getPrescription, getActivePrescriptions, acceptPrescription, consumePrescriptions, clearPrescription } = usePrescriptions(userId);
 
   const handleDismissSummary = useCallback(() => {
     setMomentumMessage(pickMomentumMessage(sessionPRs, history));
@@ -476,7 +480,7 @@ export default function Home() {
   };
 
   const handleStartFromTemplate = (template: WorkoutTemplate) => {
-    startWorkout(template.name, template.id, template.exercises);
+    startWorkout(template.name, template.id, template.exercises, undefined, getActivePrescriptions());
     setShowTemplates(false);
   };
 
@@ -484,7 +488,7 @@ export default function Home() {
     const allTemplates = [...PRESET_TEMPLATES, ...templates];
     const template = day.templateId ? allTemplates.find((t) => t.id === day.templateId) : undefined;
     const name = template?.name ? `Day ${day.dayNumber} – ${template.name}` : `Day ${day.dayNumber}`;
-    startWorkout(name, template?.id, template?.exercises, dayIndex);
+    startWorkout(name, template?.id, template?.exercises, dayIndex, getActivePrescriptions());
     setShowTrainingPlan(false);
   };
 
@@ -550,7 +554,7 @@ export default function Home() {
     setSaveError(false);
     try {
       if (pendingExit === "save") {
-        const skipped = await saveWorkout();
+        const skipped = await saveWorkout(consumePrescriptions);
         setSkippedSetsCount(skipped ?? 0);
       } else resetWorkout();
       setPendingExit(null);
@@ -568,7 +572,7 @@ export default function Home() {
     const templateId          = activeWorkout?.templateId;
     const structuralExercises = buildStructuralExercises();
     try {
-      const skipped = await saveWorkout();
+      const skipped = await saveWorkout(consumePrescriptions);
       setSkippedSetsCount(skipped ?? 0);
       if (templateId) {
         await updateTemplate(templateId, structuralExercises);
@@ -585,7 +589,7 @@ export default function Home() {
     setUpdatingPlan(true);
     setUpdatePlanError(false);
     try {
-      const skipped = await saveWorkout();
+      const skipped = await saveWorkout(consumePrescriptions);
       setSkippedSetsCount(skipped ?? 0);
       setShowUpdatePlanModal(false);
     } catch {
@@ -884,7 +888,13 @@ export default function Home() {
               {effectiveProgressions.length > 0 ? (
                 <div className="space-y-3">
                   {effectiveProgressions.map((p) => (
-                    <ProgressionCard key={p.name} progression={p} onTap={() => setSelectedExercise(p)} />
+                    <ProgressionCard
+                      key={p.name}
+                      progression={p}
+                      onTap={() => setSelectedExercise(p)}
+                      activePrescription={getPrescription(p.name)}
+                      onAcceptPrescription={acceptPrescription}
+                    />
                   ))}
                 </div>
               ) : (
@@ -978,14 +988,11 @@ export default function Home() {
                 <div className="space-y-3">
                   {exercises.map((exercise) => {
                     const prog = effectiveProgressions.find((p) => p.name === exercise.exerciseName);
-                    const lastSessions = prog?.recentSessions ?? [];
-                    const lastSess = lastSessions.length > 0 ? lastSessions[lastSessions.length - 1] : undefined;
                     return (
                       <SortableExerciseCard
                         key={exercise.id}
                         exercise={exercise}
                         activeTimer={activeTimer}
-                        lastSession={lastSess ? { topWeight: lastSess.topWeight, topReps: lastSess.topReps } : undefined}
                         progression={prog}
                         onDelete={() => deleteExercise(exercise.id)}
                         onDeleteSet={(setId) => deleteSet(exercise.id, setId)}
@@ -998,7 +1005,8 @@ export default function Home() {
                         onExtendTimer={extendTimer}
                         onUpdateExerciseRest={(field, value) => updateExerciseRest(exercise.id, field, value)}
                         suggestion={getExerciseSuggestion(exercise) ?? undefined}
-                        onOpenDetail={() => openFocused(exercise.id)}
+                        onOpenHistory={prog ? () => setSelectedExercise(prog) : undefined}
+                        onOpenFocusMode={() => openFocused(exercise.id)}
                       />
                     );
                   })}
@@ -1028,6 +1036,14 @@ export default function Home() {
 
       {process.env.NODE_ENV === "development" && (
         <CoachTestPanel state={coachTest} onChange={setCoachTest} />
+      )}
+
+      {process.env.NODE_ENV === "development" && (
+        <PrescriptionQAPanel
+          userId={userId}
+          prescriptionApi={{ prescriptions, getPrescription, acceptPrescription, consumePrescriptions, clearPrescription }}
+          activeWorkout={activeWorkout}
+        />
       )}
 
       {prFlash && (

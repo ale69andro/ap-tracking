@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import type { ExerciseSet, ActiveTimer, SetType } from "@/app/types";
 import { getTimerRemaining } from "@/app/hooks/useWorkout";
 import RestTimer from "./RestTimer";
+import NumberPickerSheet from "./NumberPickerSheet";
 import { Undo2, Trash2 } from "lucide-react";
 
 const SET_TYPES: SetType[] = ["Normal", "Warm-up", "Drop Set"];
@@ -45,6 +46,9 @@ export default function SetRow({
   const weightRef      = useRef<HTMLInputElement>(null);
   const prevIsActiveRef = useRef(isActive);
   const [showControls, setShowControls] = useState(false);
+
+  // ── Number picker state ────────────────────────────────────────────────────
+  const [pickerOpen, setPickerOpen] = useState<"weight" | "reps" | null>(null);
 
   // ── Trash confirm state ─────────────────────────────────────────────────────
   const [armed, setArmed] = useState(false);
@@ -202,15 +206,13 @@ export default function SetRow({
 
                 {/* Weight */}
                 <div className="flex flex-col gap-1">
-                  <input
-                    ref={weightRef}
-                    type="number"
-                    inputMode="decimal"
-                    value={set.weight}
-                    onChange={(e) => onUpdate("weight", e.target.value)}
-                    placeholder="—"
-                    className={`w-full bg-zinc-800 border border-zinc-700/80 rounded-lg px-2 font-semibold text-center text-white placeholder-zinc-700 focus:outline-none focus:border-red-500 transition-colors ${isActive ? "py-3.5 text-lg" : "py-3.5 text-base"}`}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen("weight")}
+                    className={`w-full bg-zinc-800 border border-zinc-700/80 rounded-lg px-2 font-semibold text-center text-white placeholder-zinc-700 focus:outline-none focus:border-red-500 transition-colors cursor-pointer hover:border-red-500/50 active:bg-zinc-700 ${isActive ? "py-3.5 text-lg" : "py-3.5 text-base"}`}
+                  >
+                    {set.weight || "—"}
+                  </button>
                   <div className="flex gap-1">
                     {([-2.5, +2.5, +5] as const).map((d) => (
                       <button key={d} type="button" onClick={() => bump("weight", d)}
@@ -223,14 +225,13 @@ export default function SetRow({
 
                 {/* Reps */}
                 <div className="flex flex-col gap-1">
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={set.reps}
-                    onChange={(e) => onUpdate("reps", e.target.value)}
-                    placeholder="—"
-                    className={`w-full bg-zinc-800 border border-zinc-700/80 rounded-lg px-2 font-semibold text-center text-white placeholder-zinc-700 focus:outline-none focus:border-red-500 transition-colors ${isActive ? "py-3.5 text-lg" : "py-3.5 text-base"}`}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen("reps")}
+                    className={`w-full bg-zinc-800 border border-zinc-700/80 rounded-lg px-2 font-semibold text-center text-white placeholder-zinc-700 focus:outline-none focus:border-red-500 transition-colors cursor-pointer hover:border-red-500/50 active:bg-zinc-700 ${isActive ? "py-3.5 text-lg" : "py-3.5 text-base"}`}
+                  >
+                    {set.reps || "—"}
+                  </button>
                   <div className="flex gap-1">
                     {([-1, +1] as const).map((d) => (
                       <button key={d} type="button" onClick={() => bump("reps", d)}
@@ -296,6 +297,28 @@ export default function SetRow({
           onExtend={onExtendTimer}
         />
       )}
+
+      {/* Number Picker Sheets */}
+      <NumberPickerSheet
+        isOpen={pickerOpen === "weight"}
+        title="Weight"
+        currentValue={parseFloat(set.weight) || 0}
+        minValue={0}
+        maxValue={300}
+        increment={0.5}
+        onChange={(value) => onUpdate("weight", String(value))}
+        onClose={() => setPickerOpen(null)}
+      />
+      <NumberPickerSheet
+        isOpen={pickerOpen === "reps"}
+        title="Reps"
+        currentValue={parseFloat(set.reps) || 1}
+        minValue={1}
+        maxValue={30}
+        increment={1}
+        onChange={(value) => onUpdate("reps", String(Math.round(value)))}
+        onClose={() => setPickerOpen(null)}
+      />
     </>
   );
 }

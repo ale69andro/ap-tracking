@@ -13,7 +13,7 @@ const ACTION_LABEL: Partial<Record<ExerciseRecommendationAction, string>> = {
   reduce_load:   "Reduce load",
   deload:        "Deload",
 };
-import { GripVertical, Trash2, ChevronUp, ChevronDown, Plus } from "lucide-react";
+import { GripVertical, Trash2, ChevronUp, ChevronDown, Plus, Maximize2 } from "lucide-react";
 
 // ─── ExerciseCardBody ─────────────────────────────────────────────────────────
 // Shared between ExerciseCard (workout list) and FocusedExerciseOverlay.
@@ -212,16 +212,15 @@ export function ExerciseCardBody({
 // around the shared ExerciseCardBody.
 
 type Props = ExerciseCardBodyProps & {
-  lastSession?: { topWeight: number; topReps: number };
   onDelete: () => void;
-  onOpenDetail?: () => void;
+  onOpenHistory?: () => void;
+  onOpenFocusMode?: () => void;
   dragHandleProps?: HTMLAttributes<HTMLElement>;
 };
 
 export default function ExerciseCard({
   exercise,
   activeTimer,
-  lastSession,
   progression,
   onDelete,
   onDeleteSet,
@@ -234,7 +233,8 @@ export default function ExerciseCard({
   onAdjustTimer,
   onExtendTimer,
   onUpdateExerciseRest,
-  onOpenDetail,
+  onOpenHistory,
+  onOpenFocusMode,
   dragHandleProps,
 }: Props) {
   return (
@@ -242,29 +242,41 @@ export default function ExerciseCard({
 
       {/* Exercise header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-4 border-b border-zinc-800/60">
-        <div className="min-w-0">
-          {onOpenDetail ? (
+        <div className="min-w-0 flex-1">
+          {onOpenHistory ? (
             <button
-              onClick={onOpenDetail}
-              className="text-sm font-bold text-white tracking-wide truncate text-left px-1.5 py-0.5 -mx-1.5 rounded-md border border-transparent hover:border-zinc-700 hover:bg-zinc-800/40 active:scale-[0.98] active:bg-zinc-800/60 transition-colors transition-transform cursor-pointer"
+              onClick={onOpenHistory}
+              className="text-left w-full hover:text-red-500 transition-colors active:opacity-70"
+              title="View exercise history"
             >
-              {exercise.exerciseName}
+              <h3 className="text-sm font-bold text-white tracking-wide truncate">{exercise.exerciseName}</h3>
+              {exercise.muscleGroups.length > 0 && (
+                <p className="hidden sm:block text-[11px] text-zinc-600 mt-0.5 tracking-wide">
+                  {exercise.muscleGroups.join(" · ")}
+                </p>
+              )}
             </button>
           ) : (
-            <h3 className="text-sm font-bold text-white tracking-wide truncate">{exercise.exerciseName}</h3>
-          )}
-          {exercise.muscleGroups.length > 0 && (
-            <p className="hidden sm:block text-[11px] text-zinc-600 mt-0.5 tracking-wide">
-              {exercise.muscleGroups.join(" · ")}
-            </p>
-          )}
-          {lastSession && lastSession.topWeight > 0 && lastSession.topReps > 0 && (
-            <p className="hidden sm:block text-[11px] text-zinc-700 mt-0.5 tabular-nums">
-              Last · {lastSession.topWeight} kg × {lastSession.topReps}
-            </p>
+            <>
+              <h3 className="text-sm font-bold text-white tracking-wide truncate">{exercise.exerciseName}</h3>
+              {exercise.muscleGroups.length > 0 && (
+                <p className="hidden sm:block text-[11px] text-zinc-600 mt-0.5 tracking-wide">
+                  {exercise.muscleGroups.join(" · ")}
+                </p>
+              )}
+            </>
           )}
         </div>
         <div className="ml-3 shrink-0 flex items-center gap-1">
+          {onOpenFocusMode && (
+            <button
+              onClick={onOpenFocusMode}
+              className="text-zinc-600 hover:text-red-500 w-9 h-9 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
+              title="Focus mode"
+            >
+              <Maximize2 size={16} />
+            </button>
+          )}
           <div
             {...dragHandleProps}
             style={{ touchAction: "none" }}

@@ -8,9 +8,12 @@ import type {
   WorkoutSession,
   ActiveTimer,
   TemplateExercise,
+  ExercisePrescription,
+  ExerciseStructureSnapshot,
 } from "@/app/types";
 import { createClient } from "@/lib/supabase/client";
 import { arrayMove } from "@dnd-kit/sortable";
+import { applyPrescriptionToSets, hasStructureChanged } from "@/app/lib/workout";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -330,10 +333,16 @@ export function useWorkout(
     templateId?: string,
     templateExercises?: TemplateExercise[],
     trainingDayIndex?: number,
+    prescriptions?: ExercisePrescription[],
   ) => {
     const exercises = (templateExercises ?? []).map((ex) => {
       // Single restore source: globally newest session for this exercise.
       const prev = findGlobalPreviousExercise(ex.name);
+
+      // Active prescription for this exercise — applied to working sets only.
+      const prescription = prescriptions?.find(
+        (p) => p.exercise_name === ex.name && p.consumed_at === null,
+      );
 
       if (prev) {
         // Restore all fields (structure, weights, reps, rest) from the most
@@ -343,7 +352,7 @@ export function useWorkout(
           (weightsByType[s.type] ??= []).push(s.weight);
         }
         const typeCounter: Record<string, number> = {};
-        const sets: ExerciseSet[] = prev.sets.map((s) => {
+        let sets: ExerciseSet[] = prev.sets.map((s) => {
           const nth           = typeCounter[s.type] ?? 0;
           typeCounter[s.type] = nth + 1;
           const weight        = weightsByType[s.type]?.[nth] ?? s.weight;
@@ -357,6 +366,10 @@ export function useWorkout(
             // completedAt intentionally omitted
           };
         });
+
+        // ── Apply prescription overrides to working sets only ─────────────
+        sets = applyPrescriptionToSets(sets, prescription);
+
         return {
           id:                 uid(),
           exerciseName:       ex.name,
@@ -373,7 +386,7 @@ export function useWorkout(
       const targetReps = ex.targetReps != null ? String(ex.targetReps) : "";
       const restSecs   = ex.restSeconds ?? 60;
       const weight     = resolveStartWeight(ex.name, ex.startWeight);
-      const sets: ExerciseSet[] = Array.from({ length: numSets }, () => ({
+      let sets: ExerciseSet[] = Array.from({ length: numSets }, () => ({
         id:          uid(),
         weight,
         reps:        targetReps,
@@ -381,6 +394,10 @@ export function useWorkout(
         restSeconds: restSecs,
         completed:   false,
       }));
+
+      // ── Apply prescription overrides (no-history path) ────────────────────
+      sets = applyPrescriptionToSets(sets, prescription);
+
       return {
         id:                 uid(),
         exerciseName:       ex.name,
@@ -391,6 +408,20 @@ export function useWorkout(
         workingRestSeconds: ex.restSeconds ?? 90,
       };
     });
+    // Capture the materialized exercise structure at session start.
+    // This snapshot reflects the actual set counts and types after history-
+    // restore and prescription overrides — not just the template definition.
+    // Used by hasStructureChanged to avoid false positives when history has
+    // already produced a different structure than the template defines.
+    const originalExerciseStructure: ExerciseStructureSnapshot[] | undefined =
+      templateId
+        ? exercises.map((ex) => ({
+            exerciseName: ex.exerciseName,
+            setCount:     ex.sets.length,
+            setTypes:     ex.sets.map((s) => s.type),
+          }))
+        : undefined;
+
     setActiveWorkout({
       id: uid(),
       name,
@@ -400,6 +431,7 @@ export function useWorkout(
       startedAt: Date.now(),
       exercises,
       originalTemplateExercises: templateExercises ? [...templateExercises] : undefined,
+      originalExerciseStructure,
     });
   };
 
@@ -529,7 +561,9 @@ export function useWorkout(
 
   // ── Save / Reset ─────────────────────────────────────────────────────────
 
-  const saveWorkout = async (): Promise<number> => {
+  const saveWorkout = async (
+    consumePrescriptions?: (exerciseNames: string[]) => Promise<void>,
+  ): Promise<number> => {
     if (!activeWorkout || !userId || activeWorkout.exercises.length === 0) return 0;
     clearTimer();
 
@@ -563,6 +597,13 @@ export function useWorkout(
     setActiveWorkout(null);
     setCompletedSession(session);
     onSaveSuccess?.(session);
+
+    // Consume active prescriptions for all exercises in this session.
+    if (consumePrescriptions) {
+      const exerciseNames = session.exercises.map((ex) => ex.exerciseName);
+      void consumePrescriptions(exerciseNames);
+    }
+
     return skippedSets;
   };
 
@@ -590,17 +631,16 @@ export function useWorkout(
 
   // ── Structure-change detection ────────────────────────────────────────────
   //
-  // Compares current exercise names/order against the snapshot stored at
-  // session start. Count changes, name changes, and order changes all qualify.
-  // Weight, reps, rest time, and completion state do NOT count.
+  // Delegates to hasStructureChanged (pure function in app/lib/workout.ts).
+  // Compares the current session structure against the materialized snapshot
+  // captured at session start. Detects: exercise list/order changes, set count
+  // changes per exercise, and set type sequence changes per exercise.
+  // Weight, reps, rest time, and completion state do NOT trigger a change.
 
   const structureChanged: boolean = (() => {
     const workout = userId ? activeWorkout : null;
-    if (!workout?.templateId || !workout.originalTemplateExercises) return false;
-    const original = workout.originalTemplateExercises.map((e) => e.name);
-    const current  = workout.exercises.map((e) => e.exerciseName);
-    if (original.length !== current.length) return true;
-    return original.some((name, i) => name !== current[i]);
+    if (!workout?.templateId || !workout.originalExerciseStructure) return false;
+    return hasStructureChanged(workout);
   })();
 
   /**

@@ -25,6 +25,20 @@ export type SessionExercise = {
   workingRestSeconds: number;
 };
 
+/**
+ * Lightweight per-exercise structure snapshot stored at session start.
+ * Used by hasStructureChanged to detect in-session structural edits without
+ * comparing against template definitions (which may differ from the
+ * materialized start state when history restores a different set count).
+ */
+export type ExerciseStructureSnapshot = {
+  exerciseName: string;
+  /** Total set count as materialized at session start (may differ from template.sets). */
+  setCount: number;
+  /** Ordered set types as materialized at session start. */
+  setTypes: SetType[];
+};
+
 export type WorkoutSession = {
   id: string;
   templateId?: string;
@@ -38,6 +52,14 @@ export type WorkoutSession = {
   exercises: SessionExercise[];
   /** Snapshot of the template's exercise list at session start — used for structureChanged detection. Only set when started from a template. */
   originalTemplateExercises?: TemplateExercise[];
+  /**
+   * Lightweight structural snapshot of each exercise as materialized at session
+   * start. Captures set counts and set types (but not weight/reps). Used by
+   * hasStructureChanged to detect in-session edits accurately, including when
+   * history has already restored a different set count than the template defines.
+   * Only set when started from a template (templateId is present).
+   */
+  originalExerciseStructure?: ExerciseStructureSnapshot[];
 };
 
 export type WorkoutTemplate = {
@@ -363,6 +385,32 @@ export type ExerciseCoachRecommendation = {
   reason: string;
   /** Longer personalised coaching message — only present when UserProfile is provided. */
   coachMessage?: string;
+};
+
+// ─── Next-Session Prescription ───────────────────────────────────────────────
+
+/**
+ * A user-accepted prescription for a specific exercise, created when the user
+ * taps "Apply next time" on a ProgressionCard recommendation.
+ *
+ * Identity: (user_id, exercise_name) with a partial unique index WHERE consumed_at IS NULL.
+ * Only one active (unconsumed) prescription per exercise is allowed at a time.
+ * Consumed after the next workout containing that exercise is successfully saved.
+ */
+export type ExercisePrescription = {
+  id: string;
+  user_id: string;
+  exercise_name: string;
+  template_id: string | null;
+  target_weight: number | null;
+  target_reps_min: number;
+  target_reps_max: number;
+  target_sets: number | null;
+  action: ExerciseRecommendationAction;
+  confidence: string;
+  reason: string | null;
+  accepted_at: string;   // ISO timestamptz
+  consumed_at: string | null;
 };
 
 // ─── Backward-compat alias ────────────────────────────────────────────────────

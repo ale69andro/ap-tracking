@@ -1,6 +1,8 @@
-import type { ExerciseProgression, ExerciseSession, ExerciseTrend, ExerciseRecommendationAction } from "@/app/types";
+import { useState } from "react";
+import type { ExerciseProgression, ExerciseSession, ExerciseTrend, ExerciseRecommendationAction, ExercisePrescription } from "@/app/types";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import { getExerciseRecommendation } from "@/lib/analysis/getExerciseRecommendation";
+import type { AcceptPrescriptionParams } from "@/app/hooks/usePrescriptions";
 import SparkLine from "./SparkLine";
 
 const ACTION_LABEL: Partial<Record<ExerciseRecommendationAction, string>> = {
@@ -48,6 +50,10 @@ function buildDelta(sessions: ExerciseSession[]): Delta | null {
 type Props = {
   progression: ExerciseProgression;
   onTap: () => void;
+  /** Active (unconsumed) prescription for this exercise, if one exists. */
+  activePrescription?: ExercisePrescription;
+  /** Called when user taps "Apply next time". Undefined = feature not available. */
+  onAcceptPrescription?: (params: AcceptPrescriptionParams) => Promise<void>;
 };
 
 function resolvedTrendKey(p: ExerciseProgression): ExerciseTrend {
@@ -64,10 +70,11 @@ function resolvedTrendKey(p: ExerciseProgression): ExerciseTrend {
   return p.trend;
 }
 
-export default function ProgressionCard({ progression, onTap }: Props) {
+export default function ProgressionCard({ progression, onTap, activePrescription, onAcceptPrescription }: Props) {
   const { name, muscleGroups, bestWeight, recentSessions } = progression;
   const t     = TREND_CONFIG[resolvedTrendKey(progression)];
   const delta = buildDelta(recentSessions);
+  const [isAccepting, setIsAccepting] = useState(false);
 
   // Central recommendation engine — no repRange here (trend-based fallback).
   // recentSessions are already filtered to working sets by useProgression.
@@ -150,6 +157,42 @@ export default function ProgressionCard({ progression, onTap }: Props) {
             <p className="text-[10px] text-zinc-500 mt-0.5">Drop to {recommendation.targetSets} sets</p>
           )}
           <p className="text-[10px] text-zinc-600 mt-0.5 leading-snug">{recommendation.reason}</p>
+
+          {/* Apply next time — only shown when the feature is wired in */}
+          {onAcceptPrescription && (
+            <div className="mt-2">
+              {activePrescription ? (
+                <span className="text-[10px] font-semibold text-emerald-500">
+                  Applied for next session
+                </span>
+              ) : (
+                <button
+                  disabled={isAccepting}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setIsAccepting(true);
+                    try {
+                      await onAcceptPrescription({
+                        exercise_name:   name,
+                        target_weight:   recommendation.targetWeight,
+                        target_reps_min: recommendation.targetRepsMin,
+                        target_reps_max: recommendation.targetRepsMax,
+                        target_sets:     recommendation.targetSets ?? null,
+                        action:          recommendation.action,
+                        confidence:      recommendation.confidence,
+                        reason:          recommendation.reason,
+                      });
+                    } finally {
+                      setIsAccepting(false);
+                    }
+                  }}
+                  className="text-[10px] font-semibold text-red-400 active:text-red-300 transition-colors disabled:opacity-50"
+                >
+                  Apply next time
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </button>

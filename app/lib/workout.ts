@@ -1,4 +1,4 @@
-import type { ExerciseSet, WorkoutSession, WorkoutHighlight } from "@/app/types";
+import type { ExerciseSet, ExercisePrescription, WorkoutSession, WorkoutHighlight } from "@/app/types";
 
 export type PRRecord = { exerciseName: string; type: "e1rm" | "weight" };
 import { calculate1RM } from "@/lib/analysis/calculate1RM";
@@ -6,6 +6,61 @@ import { calculate1RM } from "@/lib/analysis/calculate1RM";
 /** Returns only working sets — excludes Warm-up type. Use for non-metric purposes (e.g. weight pre-fill). */
 export function getWorkingSets(sets: ExerciseSet[]): ExerciseSet[] {
   return sets.filter((s) => s.type !== "Warm-up");
+}
+
+/**
+ * Applies an active prescription to a set array, returning a new array.
+ * Pure function — no side effects.
+ *
+ * Rules:
+ * - Warm-up sets are never touched (type === "Warm-up").
+ * - target_weight overrides working-set weight when not null.
+ * - target_reps_min overrides working-set reps.
+ * - target_sets adjusts the working-set count (add/remove from end).
+ *   Warm-up count and order are preserved.
+ * - Rest values, set types, and ordering are preserved.
+ * - If prescription is undefined/null, returns the original array unchanged.
+ */
+export function applyPrescriptionToSets(
+  sets: ExerciseSet[],
+  prescription: ExercisePrescription | undefined,
+): ExerciseSet[] {
+  if (!prescription) return sets;
+
+  const prescribedWeight =
+    prescription.target_weight !== null ? String(prescription.target_weight) : null;
+  const prescribedRepsMin = String(prescription.target_reps_min);
+
+  // Override weight and reps on working sets only.
+  let result = sets.map((s) => {
+    if (s.type === "Warm-up") return s;
+    return {
+      ...s,
+      ...(prescribedWeight !== null ? { weight: prescribedWeight } : {}),
+      reps: prescribedRepsMin,
+    };
+  });
+
+  // Adjust working-set count if prescription specifies one.
+  if (prescription.target_sets !== null) {
+    const warmupSets   = result.filter((s) => s.type === "Warm-up");
+    const workingSets  = result.filter((s) => s.type !== "Warm-up");
+    const targetCount  = prescription.target_sets;
+
+    if (workingSets.length < targetCount) {
+      // Clone last working set to fill up to targetCount.
+      const template = workingSets[workingSets.length - 1];
+      const extra: ExerciseSet[] = Array.from(
+        { length: targetCount - workingSets.length },
+        () => ({ ...template, id: crypto.randomUUID(), completed: false }),
+      );
+      result = [...warmupSets, ...workingSets, ...extra];
+    } else if (workingSets.length > targetCount) {
+      result = [...warmupSets, ...workingSets.slice(0, targetCount)];
+    }
+  }
+
+  return result;
 }
 
 /** Returns sets that count toward metrics: completed and not a warm-up. Single source of truth for all calculations. */
@@ -124,4 +179,54 @@ export function computeStrengthDelta(
 
   if (deltas.length === 0) return null;
   return Math.round((deltas.reduce((a, b) => a + b, 0) / deltas.length) * 100);
+}
+
+/**
+ * Pure function that returns true when the current session's exercise structure
+ * differs from the materialized snapshot captured at session start.
+ *
+ * The snapshot (originalExerciseStructure) is stored on WorkoutSession when a
+ * plan-based workout starts and reflects the actual set counts and types after
+ * history-restore and prescription overrides — not the raw template definition.
+ * This prevents false positives when prior sessions had already produced a
+ * structure that differs from the template.
+ *
+ * Detects:
+ * - Exercise list changes: added, removed, replaced, or reordered exercises.
+ * - Set count changes per exercise.
+ * - Set type sequence changes per exercise (Normal / Warm-up / Drop Set).
+ *
+ * Does NOT trigger on:
+ * - Weight or reps values (logged performance data).
+ * - Completion flags or timestamps.
+ * - Rest seconds.
+ * - Transient UI state (IDs, notes edits).
+ *
+ * Returns false when the session was not started from a template (no snapshot).
+ */
+export function hasStructureChanged(session: WorkoutSession): boolean {
+  const snapshot = session.originalExerciseStructure;
+  if (!snapshot || snapshot.length === 0) return false;
+
+  const current = session.exercises;
+
+  // Exercise count or order/name mismatch.
+  if (snapshot.length !== current.length) return true;
+  for (let i = 0; i < snapshot.length; i++) {
+    if (snapshot[i].exerciseName !== current[i].exerciseName) return true;
+  }
+
+  // Per-exercise: set count and set type sequence.
+  for (let i = 0; i < snapshot.length; i++) {
+    if (snapshot[i].setCount !== current[i].sets.length) return true;
+
+    const snapTypes = snapshot[i].setTypes;
+    const currTypes = current[i].sets.map((s) => s.type);
+    if (snapTypes.length !== currTypes.length) return true;
+    for (let j = 0; j < snapTypes.length; j++) {
+      if (snapTypes[j] !== currTypes[j]) return true;
+    }
+  }
+
+  return false;
 }
