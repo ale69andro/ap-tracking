@@ -77,13 +77,14 @@ export function useTrainingPlan(userId: string | null) {
     );
   }, [userId, plan, progress]);
 
-  /** Mark a day (by 0-based index) as the most recently completed. */
+  /** Mark a day (by 0-based index) as the most recently completed. Clears any skip override. */
   const markDayCompleted = useCallback((dayIndex: number) => {
     if (!userId || !plan) return;
     const updated: TrainingProgress = {
       planId: plan.id,
       lastCompletedDayIndex: dayIndex,
       lastCompletedAt: Date.now(),
+      skippedToIndex: null,
     };
     setProgressState(updated);
     upsertPlan(userId, plan, updated).catch((err) =>
@@ -107,16 +108,50 @@ export function useTrainingPlan(userId: string | null) {
   const validProgress         = progress?.planId === plan?.id ? progress : null;
   const lastCompletedDayIndex = validProgress?.lastCompletedDayIndex ?? null;
   const lastCompletedAt       = validProgress?.lastCompletedAt ?? null;
+  const n = plan?.days.length ?? 0;
+  const skippedToIndex =
+    validProgress?.skippedToIndex != null && validProgress.skippedToIndex < n
+      ? validProgress.skippedToIndex
+      : null;
 
-  const nextDayIndex =
-    plan && plan.days.length > 0
+  const baseNextDayIndex =
+    plan && n > 0
       ? lastCompletedDayIndex === null
         ? 0
-        : (lastCompletedDayIndex + 1) % plan.days.length
+        : (lastCompletedDayIndex + 1) % n
+      : null;
+
+  // Use the explicit skip override when present (and in-bounds); otherwise fall back to normal sequence.
+  const nextDayIndex =
+    plan && n > 0
+      ? (skippedToIndex !== null ? skippedToIndex : baseNextDayIndex)
       : null;
 
   const nextDay          = plan && nextDayIndex !== null ? plan.days[nextDayIndex]                    : null;
   const lastCompletedDay = plan && lastCompletedDayIndex !== null ? plan.days[lastCompletedDayIndex] : null;
+
+  /**
+   * Advance the next-day pointer by +1 without completing a workout.
+   * Safe to call multiple times; each call moves the pointer one further step.
+   * Wraps around when the last unit is skipped.
+   * No-op when the plan has only one day.
+   */
+  const skipCurrentDay = useCallback(() => {
+    if (!userId || !plan || plan.days.length <= 1) return;
+    // nextDayIndex already reflects any prior skip, so we advance from there.
+    const current = nextDayIndex ?? 0;
+    const newIndex = (current + 1) % plan.days.length;
+    const updated: TrainingProgress = {
+      planId: plan.id,
+      lastCompletedDayIndex: validProgress?.lastCompletedDayIndex ?? null,
+      lastCompletedAt: validProgress?.lastCompletedAt ?? null,
+      skippedToIndex: newIndex,
+    };
+    setProgressState(updated);
+    upsertPlan(userId, plan, updated).catch((err) =>
+      console.error("Failed to save skip:", err),
+    );
+  }, [userId, plan, nextDayIndex, validProgress]);
 
   return {
     plan,
@@ -126,6 +161,7 @@ export function useTrainingPlan(userId: string | null) {
     lastCompletedAt,
     setPlan,
     markDayCompleted,
+    skipCurrentDay,
     clearPlan,
   };
 }

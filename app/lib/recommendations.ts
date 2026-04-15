@@ -89,13 +89,25 @@ export function computeNextTarget(
         note:    "Same weight — add 1 rep",
       };
     } else {
-      // Hit the ceiling — add increment, reset to lower bound
+      // Hit or exceeded the ceiling — add increment, soft-reset reps.
+      //
+      // Hard reset to repRangeMin is correct for narrow ranges (e.g. 6–8, drop 2)
+      // but produces absurd output for wide ranges (e.g. 6–20, drop 14).
+      // Instead, drop at most SOFT_DROP reps from the last set, floored at
+      // repRangeMin. For narrow ranges the floor dominates and nothing changes;
+      // for wide ranges the collapse is capped at a coach-logical level.
+      //
+      // 70 × 8  (range 6–8)  → max(6, 8-4)  = 6  → 72.5 × 6  (unchanged)
+      // 70 × 10 (range 6–10) → max(6, 10-4) = 6  → 72.5 × 6  (unchanged)
+      // 70 × 20 (range 6–20) → max(6, 20-4) = 16 → 72.5 × 16 (fixed)
       const inc = options.increment > 0 ? options.increment : PLATE;
+      const SOFT_DROP = 4;
+      const resetReps = Math.max(options.repRangeMin, r - SOFT_DROP);
       return {
         weight:  +(w + inc).toFixed(2),
-        repsMin: options.repRangeMin,
-        repsMax: options.repRangeMin,
-        note:    `+${inc} kg — reset to ${options.repRangeMin} reps`,
+        repsMin: resetReps,
+        repsMax: resetReps,
+        note:    `+${inc} kg — reset to ${resetReps} reps`,
       };
     }
   }

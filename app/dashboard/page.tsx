@@ -164,6 +164,7 @@ export default function Home() {
   const [skippedSetsCount, setSkippedSetsCount] = useState(0);
   const [showUpdatePlanModal, setShowUpdatePlanModal] = useState(false);
   const [updatePlanError, setUpdatePlanError]         = useState(false);
+  const [showSkipConfirm, setShowSkipConfirm]         = useState(false);
   const [updatingPlan, setUpdatingPlan]               = useState(false);
   const [checkInDismissed,  setCheckInDismissed]  = useState(false);
   const [checkInConfirming, setCheckInConfirming] = useState(false);
@@ -427,6 +428,7 @@ export default function Home() {
     lastCompletedAt,
     setPlan: saveTrainingPlan,
     markDayCompleted,
+    skipCurrentDay,
     clearPlan: clearTrainingPlan,
   } = useTrainingPlan(userId);
 
@@ -720,6 +722,26 @@ export default function Home() {
         />
       )}
 
+      {showSkipConfirm && trainingPlan && nextDayIndex !== null && (() => {
+        const n = trainingPlan.days.length;
+        const afterSkipIndex = (nextDayIndex + 1) % n;
+        const afterSkipDay = trainingPlan.days[afterSkipIndex];
+        const afterSkipName = afterSkipDay.templateId
+          ? (allTemplatesForDisplay.find((t) => t.id === afterSkipDay.templateId)?.name ?? afterSkipDay.label)
+          : afterSkipDay.label;
+        const afterSkipLabel = `Day ${afterSkipDay.dayNumber}${afterSkipName ? ` – ${afterSkipName}` : ""}`;
+        return (
+          <ConfirmModal
+            title="Skip this workout?"
+            description={`You'll move on to ${afterSkipLabel} instead. Your plan stays unchanged.`}
+            confirmLabel="Skip"
+            cancelLabel="Keep current"
+            onConfirm={() => { skipCurrentDay(); setShowSkipConfirm(false); }}
+            onCancel={() => setShowSkipConfirm(false)}
+          />
+        );
+      })()}
+
       {isFocused && focusedExercise && (() => {
         const focusedProg = effectiveProgressions.find((p) => p.name === focusedExercise.exerciseName);
         const timerExerciseName = activeTimer
@@ -873,6 +895,7 @@ export default function Home() {
               coachHint={coachHint}
               onStart={handleStartFromDay}
               onSetup={openTrainingPlanSheet}
+              onSkip={(trainingPlan?.days.length ?? 0) > 1 ? () => setShowSkipConfirm(true) : undefined}
             />
 
             {/* Progression */}

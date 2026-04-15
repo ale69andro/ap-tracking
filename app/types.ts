@@ -324,6 +324,7 @@ export type TrainingProgress = {
   planId: string;
   lastCompletedDayIndex: number | null; // 0-based index into TrainingPlan.days[]
   lastCompletedAt: number | null;       // timestamp of last completion
+  skippedToIndex?: number | null;       // explicit next-day override set by skip action; cleared on workout completion
 };
 
 // ─── Coaching Suggestions ─────────────────────────────────────────────────────

@@ -16,6 +16,7 @@ interface Props {
   coachHint?: string;
   onStart: (day: TrainingDay, dayIndex: number) => void;
   onSetup: () => void;
+  onSkip?: () => void;
 }
 
 const SWIPE_THRESHOLD = 50;
@@ -38,6 +39,7 @@ export default function TrainingDayCard({
   coachHint,
   onStart,
   onSetup,
+  onSkip,
 }: Props) {
   // previewIndex: currently displayed day; syncedFrom: the nextDayIndex it was last reset to.
   // direction: 1 = forward (left swipe), -1 = backward (right swipe), used for slide animation.
@@ -158,6 +160,14 @@ export default function TrainingDayCard({
           >
             Edit
           </button>
+          {onSkip && isRealNext && (
+            <button
+              onClick={onSkip}
+              className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors px-2 py-1"
+            >
+              Skip
+            </button>
+          )}
           {previewDay && (
             <button
               onClick={() => onStart(previewDay, previewIndex)}
