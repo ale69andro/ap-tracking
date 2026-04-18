@@ -50,22 +50,21 @@ export default function SetRow({
   // ── Number picker state (reps only — weight uses direct input) ────────────
   const [pickerOpen, setPickerOpen] = useState<"reps" | null>(null);
 
-  // ── Trash confirm state ─────────────────────────────────────────────────────
-  const [armed, setArmed] = useState(false);
+  // ── Trash armed state (two-tap delete) ────────────────────────────────────
+  const [deleteArmed, setDeleteArmed] = useState(false);
   const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTrashTap = useCallback(() => {
-    if (armed) {
-      clearTimeout(armTimerRef.current!);
-      armTimerRef.current = null;
-      setArmed(false);
+    if (!deleteArmed) {
+      setDeleteArmed(true);
+      armTimerRef.current = setTimeout(() => setDeleteArmed(false), 2000);
+    } else {
+      if (armTimerRef.current) clearTimeout(armTimerRef.current);
+      setDeleteArmed(false);
       if (isTimerSet) onClearTimer();
       onDelete();
-    } else {
-      setArmed(true);
-      armTimerRef.current = setTimeout(() => setArmed(false), 2500);
     }
-  }, [armed, isTimerSet, onClearTimer, onDelete]);
+  }, [deleteArmed, isTimerSet, onClearTimer, onDelete]);
 
   useEffect(() => {
     return () => { if (armTimerRef.current) clearTimeout(armTimerRef.current); };
@@ -174,12 +173,8 @@ export default function SetRow({
                 </button>
                 <button
                   onClick={handleTrashTap}
-                  className={`w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-150 ${
-                    armed
-                      ? "text-red-500 bg-red-500/15 ring-1 ring-red-500/40 scale-110"
-                      : "text-zinc-700 hover:text-red-500 hover:bg-zinc-800"
-                  }`}
-                  title={armed ? "Tap again to confirm" : "Delete"}
+                  className={`w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-150 ${deleteArmed ? "text-red-500 bg-zinc-800 ring-1 ring-red-500/50 scale-110" : "text-zinc-700 hover:text-red-500 hover:bg-zinc-800"}`}
+                  title={deleteArmed ? "Tap again to confirm" : "Delete"}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -245,15 +240,11 @@ export default function SetRow({
                   </div>
                 </div>
 
-                {/* Delete — always visible, confirm on first tap */}
+                {/* Delete — two-tap armed state */}
                 <button
                   onClick={handleTrashTap}
-                  className={`h-full min-h-[44px] w-full flex items-center justify-center rounded-lg transition-all duration-150 ${
-                    armed
-                      ? "text-red-500 bg-red-500/15 ring-1 ring-red-500/40 scale-110"
-                      : "text-zinc-600 hover:text-red-500 hover:bg-zinc-800/60"
-                  }`}
-                  title={armed ? "Tap again to confirm" : "Delete set"}
+                  className={`h-full min-h-[44px] w-full flex items-center justify-center rounded-lg transition-all duration-150 ${deleteArmed ? "text-red-500 bg-zinc-800/60 ring-1 ring-red-500/50 scale-110" : "text-zinc-600 hover:text-red-500 hover:bg-zinc-800/60"}`}
+                  title={deleteArmed ? "Tap again to confirm" : "Delete set"}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -312,6 +303,7 @@ export default function SetRow({
         onChange={(value) => onUpdate("reps", String(Math.round(value)))}
         onClose={() => setPickerOpen(null)}
       />
+
     </>
   );
 }

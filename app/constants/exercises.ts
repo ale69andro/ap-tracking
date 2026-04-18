@@ -3,6 +3,7 @@ import type {
   CoachTag,
   Equipment,
   ExerciseCategory,
+  ExerciseRole,
   LibraryExercise,
   MovementType,
 } from "@/app/types";
@@ -23,6 +24,8 @@ type ExerciseDef = {
   movementType: MovementType;
   unilateral?: boolean;
   coachTags?: CoachTag[];
+  /** Coaching intent — defaults to "performance". Use "support" for rehab/prep/joint-health exercises. */
+  role?: ExerciseRole;
 };
 
 function defineExercise(def: ExerciseDef): BuiltInExercise {
@@ -36,6 +39,7 @@ function defineExercise(def: ExerciseDef): BuiltInExercise {
     movementType: def.movementType,
     unilateral: def.unilateral ?? false,
     coachTags: def.coachTags ?? [],
+    role: def.role ?? "performance",
     // Derived — always in sync with primary + secondary:
     muscleGroups: [
       ...def.primaryMuscleGroups,
@@ -133,6 +137,7 @@ export const LIBRARY: BuiltInExercise[] = [
   defineExercise({ id: "walking-lunge",       name: "Walking Lunge",          category: "Legs",   primaryMuscleGroups: ["Quads", "Glutes"],  secondaryMuscleGroups: [],                      equipment: "Dumbbell",   movementType: "Lunge",     coachTags: ["compound"]                     }),
   defineExercise({ id: "leg-extension",       name: "Leg Extension",          category: "Legs",   primaryMuscleGroups: ["Quads"],            secondaryMuscleGroups: [],                      equipment: "Machine",    movementType: "Extension", coachTags: ["isolation"]                    }),
   defineExercise({ id: "sissy-squat",         name: "Sissy Squat",            category: "Legs",   primaryMuscleGroups: ["Quads"],            secondaryMuscleGroups: [],                      equipment: "Bodyweight", movementType: "Squat",     coachTags: ["isolation"]                    }),
+  defineExercise({ id: "spanish-squat",       name: "Spanish Squat",          category: "Legs",   primaryMuscleGroups: ["Quads"],            secondaryMuscleGroups: [],                      equipment: "Bodyweight", movementType: "Squat",     coachTags: ["isolation", "beginner"], role: "support" }),
   defineExercise({ id: "romanian-deadlift",   name: "Romanian Deadlift",      category: "Legs",   primaryMuscleGroups: ["Hamstrings"],       secondaryMuscleGroups: ["Glutes"],              equipment: "Barbell",    movementType: "Hinge",     coachTags: ["compound"]                     }),
   defineExercise({ id: "dumbbell-rdl",        name: "Dumbbell Romanian Deadlift", category: "Legs", primaryMuscleGroups: ["Hamstrings"],    secondaryMuscleGroups: ["Glutes"],              equipment: "Dumbbell",   movementType: "Hinge",     coachTags: ["compound", "beginner"]         }),
   defineExercise({ id: "sumo-deadlift",       name: "Sumo Deadlift",          category: "Legs",   primaryMuscleGroups: ["Hamstrings", "Glutes"], secondaryMuscleGroups: ["Back"],           equipment: "Barbell",    movementType: "Hinge",     coachTags: ["compound"]                     }),
@@ -201,4 +206,13 @@ export function mergeLibrary(userExercises: LibraryExercise[]): LibraryExercise[
   const builtInNames = new Set(LIBRARY.map((e) => e.name.toLowerCase()));
   const userOnly = userExercises.filter((e) => !builtInNames.has(e.name.toLowerCase()));
   return [...LIBRARY, ...userOnly];
+}
+
+/**
+ * Returns the coaching role of an exercise.
+ * Support exercises (rehab / prep / joint-health) return "support".
+ * Custom exercises not in the library default to "performance".
+ */
+export function getExerciseRole(name: string): ExerciseRole {
+  return findBuiltIn(name)?.role ?? "performance";
 }

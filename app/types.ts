@@ -1,5 +1,8 @@
 export type SetType = "Normal" | "Warm-up" | "Drop Set";
 
+/** Controls whether the active workout is shown full-screen or as a compact mini-bar. */
+export type WorkoutDisplayMode = "full" | "minimized";
+
 /** Shared trend classification used across all analysis, UI, and recommendation layers. */
 export type ExerciseTrend = "up" | "flat" | "down" | "none" | "mixed";
 
@@ -138,6 +141,13 @@ export type MovementType =
 /** High-signal tags used by the coach for exercise selection and suggestions. */
 export type CoachTag = "compound" | "isolation" | "beginner" | "unilateral";
 
+/**
+ * Coaching intent of an exercise.
+ * - performance: treated as a strength/hypertrophy target — trend, progression, Focus Today eligible
+ * - support: rehab / prep / joint-health — consistency-oriented, excluded from Focus Today and decline framing
+ */
+export type ExerciseRole = "performance" | "support";
+
 export type LibraryExercise = {
   name: string;
   muscleGroups: string[];
@@ -161,6 +171,7 @@ export type BuiltInExercise = LibraryExercise & {
   movementType: MovementType;
   unilateral: boolean;
   coachTags: CoachTag[];
+  role: ExerciseRole;
 };
 
 export type ActiveTimer = {
@@ -412,6 +423,83 @@ export type ExercisePrescription = {
   reason: string | null;
   accepted_at: string;   // ISO timestamptz
   consumed_at: string | null;
+};
+
+// ─── Adaptive Volume Engine ───────────────────────────────────────────────────
+
+/**
+ * Whether the user's current weekly volume for a muscle group is below, within,
+ * or above their estimated effective range — or unknown if not enough data.
+ */
+export type AdaptiveVolumeZone = "below" | "optimal" | "above" | "unknown";
+
+/** How much data/consistency backs the adaptive volume estimate. */
+export type AdaptiveVolumeConfidence = "low" | "medium" | "high";
+
+/**
+ * Intermediate summary of training for one muscle group in one ISO week.
+ * Used internally by the adaptive volume engine.
+ */
+export type WeeklyMuscleSummary = {
+  /** Monday-anchored ISO date key, e.g. "2026-04-14". */
+  weekKey: string;
+  muscle: string;
+  /** Total volume (kg × reps) across all exercises for this muscle that week. */
+  volume: number;
+  /**
+   * Average e1RM percentage change vs the previous training week for each
+   * exercise in this muscle group. Null when no prior week exists.
+   */
+  performanceDelta: number | null;
+  /** Count of exercises whose e1RM clearly dropped this week (> NOISE threshold). */
+  fatigueSignals: number;
+};
+
+/**
+ * Per-muscle output of the Adaptive Volume Engine.
+ * Describes the user's current volume zone relative to their estimated
+ * best-performing range, with an honest confidence signal.
+ */
+export type MuscleAdaptiveVolumeInsight = {
+  muscle: string;
+  currentWeeklyVolume: number;
+  /** Null when not enough stable data to estimate. */
+  estimatedRange: { min: number; max: number } | null;
+  zone: AdaptiveVolumeZone;
+  confidence: AdaptiveVolumeConfidence;
+  /** Short coaching summary ready for UI display. */
+  summary: string;
+};
+
+// ─── Adaptive Volume Recommendations ─────────────────────────────────────────
+
+/**
+ * Coaching action derived from a muscle's adaptive volume zone.
+ * Translates zone + confidence into something the user can act on.
+ */
+export type AdaptiveVolumeActionType =
+  | "add_sets"
+  | "reduce_sets"
+  | "hold"
+  | "collect_more_data";
+
+/**
+ * Per-muscle coaching recommendation produced by the recommendation layer.
+ *
+ * setAdjustment is signed: positive = add, negative = reduce, null = no prescription.
+ * reason is brief and factual (engine-speak).
+ * recommendation is coach-voiced and ready for direct UI display.
+ */
+export type MuscleAdaptiveVolumeRecommendation = {
+  muscle: string;
+  action: AdaptiveVolumeActionType;
+  /** Signed weekly set change. Positive = add, negative = reduce, null = no prescription. */
+  setAdjustment: number | null;
+  confidence: AdaptiveVolumeConfidence;
+  /** Short factual reason for the recommendation. */
+  reason: string;
+  /** Coach-voiced actionable message ready for UI display. */
+  recommendation: string;
 };
 
 // ─── Backward-compat alias ────────────────────────────────────────────────────

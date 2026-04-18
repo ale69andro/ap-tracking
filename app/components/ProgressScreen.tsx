@@ -6,6 +6,12 @@ import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import { getSmartRecommendation, computeMuscleGroupLoadMap } from "@/lib/analysis/smartCoach";
 import SparkLine from "./SparkLine";
 import { CoachLabel } from "./CoachLabel";
+import VolumeOverviewCard from "./VolumeOverviewCard";
+import { getWeeklyVolumeByMuscleGroup } from "@/lib/analysis/getWeeklyVolumeByMuscleGroup";
+import { getAdaptiveVolumeInsights } from "@/lib/analysis/adaptiveVolume";
+import { getAdaptiveVolumeRecommendations, buildWeeklyMuscleSetSummaries } from "@/lib/analysis/adaptiveVolumeRecommendations";
+import WeeklyCoachingCard from "./WeeklyCoachingCard";
+import { getExerciseRole } from "@/app/constants/exercises";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -16,6 +22,15 @@ const TREND: Record<ExerciseTrend, { label: string; color: string; bg: string; s
   down:  { label: "Declining",   color: "text-red-400",     bg: "bg-red-500/15    border-red-500/30",      spark: "#f87171", glow: "#f8717126" },
   none:  { label: "New",         color: "text-zinc-400",    bg: "bg-zinc-800/50   border-zinc-700/30",     spark: "#52525b", glow: "transparent" },
 };
+
+/** Display config used for support/prep exercises — neutral, no trend judgment. */
+const SUPPORT_DISPLAY = {
+  label: "Support work",
+  color: "text-zinc-400",
+  bg:    "bg-zinc-800/50 border-zinc-700/30",
+  spark: "#71717a",
+  glow:  "transparent",
+} as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -318,9 +333,12 @@ function ExerciseCard({
   profile?: UserProfile;
   mgContext?: Record<string, "low" | "medium" | "high">;
 }) {
+  const isSupport     = getExerciseRole(p.name) === "support";
   const delta         = getDelta(p.recentSessions);
-  const t             = TREND[resolvedTrendKey(p)];
-  const insight       = getActionText(p, profile, mgContext);
+  const t             = isSupport ? SUPPORT_DISPLAY : TREND[resolvedTrendKey(p)];
+  const insight       = isSupport
+    ? "Keep the load steady and prioritize control."
+    : getActionText(p, profile, mgContext);
   const sessionCount  = p.recentSessions.length;
   const isEarlyData   = sessionCount < 4;
 
@@ -350,9 +368,9 @@ function ExerciseCard({
         className={`text-[18px] font-black leading-snug mb-1 ${t.color}`}
         style={{ textShadow: `0 0 28px ${t.spark}4D` }}
       >
-        {getPrimaryInsight(p, delta)}
+        {isSupport ? "Support movement — keep it consistent" : getPrimaryInsight(p, delta)}
       </p>
-      {p.analysis?.interpretation?.subtitle && (
+      {!isSupport && p.analysis?.interpretation?.subtitle && (
         <p className="text-[12px] text-zinc-500 font-medium mb-2 leading-snug">
           {p.analysis.interpretation.subtitle}
         </p>
@@ -416,11 +434,12 @@ function getTodayExerciseNames(
 }
 
 const SECTION_CONFIG = [
-  { key: "up",    label: "Progressing",     color: "text-emerald-500" },
-  { key: "down",  label: "Needs Attention", color: "text-red-500"     },
-  { key: "mixed", label: "Mixed Signal",    color: "text-amber-500"   },
-  { key: "flat",  label: "Plateau",         color: "text-zinc-500"    },
-  { key: "none",  label: "New",             color: "text-zinc-500"    },
+  { key: "up",      label: "Progressing",     color: "text-emerald-500" },
+  { key: "down",    label: "Needs Attention", color: "text-red-500"     },
+  { key: "mixed",   label: "Mixed Signal",    color: "text-amber-500"   },
+  { key: "flat",    label: "Plateau",         color: "text-zinc-500"    },
+  { key: "none",    label: "New",             color: "text-zinc-500"    },
+  { key: "support", label: "Support & Prep",  color: "text-zinc-600"    },
 ] as const;
 
 function groupProgressions(progressions: ExerciseProgression[]) {
@@ -428,28 +447,35 @@ function groupProgressions(progressions: ExerciseProgression[]) {
     SECTION_CONFIG.map(s => [s.key, []])
   );
   for (const p of progressions) {
-    map.get(resolvedTrendKey(p))!.push(p);
+    // Support exercises always go to the support section, regardless of trend score
+    const key = getExerciseRole(p.name) === "support" ? "support" : resolvedTrendKey(p);
+    map.get(key)!.push(p);
   }
   return SECTION_CONFIG
     .map(s => ({
       ...s,
-      // Sort within each group: highest confidence (most actionable signal) first
       items: map.get(s.key)!.sort((a, b) => getFocusScore(b) - getFocusScore(a)),
     }))
     .filter(s => s.items.length > 0);
 }
 
 export default function ProgressScreen({ progressions, onTapExercise, profile, nextDay, templates }: Props) {
-  const overview  = computeOverview(progressions);
-  const groups    = groupProgressions(progressions);
-  const mgContext = computeMuscleGroupLoadMap(progressions);
+  const overview     = computeOverview(progressions);
+  const groups       = groupProgressions(progressions);
+  const mgContext    = computeMuscleGroupLoadMap(progressions);
+  const weeklyVolume           = getWeeklyVolumeByMuscleGroup(progressions);
+  const adaptiveInsights       = getAdaptiveVolumeInsights(progressions);
+  const weeklySetSummaries     = buildWeeklyMuscleSetSummaries(progressions);
+  const adaptiveRecommendations = getAdaptiveVolumeRecommendations(adaptiveInsights, weeklySetSummaries);
 
   // Focus pool: exercises scheduled for today when plan context is available,
   // otherwise fall back to all exercises.
+  // Support exercises are always excluded — they are prep/rehab movements, not performance targets.
   const todayNames  = getTodayExerciseNames(nextDay, templates);
-  const focusPool   = todayNames
+  const focusPool   = (todayNames
     ? progressions.filter((p) => todayNames.has(p.name))
-    : progressions;
+    : progressions
+  ).filter((p) => getExerciseRole(p.name) !== "support");
   const focus = focusPool.length >= 1
     ? [...focusPool].sort((a, b) => getFocusScore(b) - getFocusScore(a))[0]
     : null;
@@ -473,6 +499,9 @@ export default function ProgressScreen({ progressions, onTapExercise, profile, n
         </div>
       ) : (
         <>
+          {/* Weekly Coaching */}
+          <WeeklyCoachingCard recommendations={adaptiveRecommendations} />
+
           {/* Overview */}
           <div className="flex gap-3 mb-8">
             <Tile
@@ -513,6 +542,9 @@ export default function ProgressScreen({ progressions, onTapExercise, profile, n
           {focus && (
             <FocusTodayCard p={focus} onTap={() => onTapExercise(focus)} profile={profile} mgContext={mgContext} />
           )}
+
+          {/* Volume Overview */}
+          <VolumeOverviewCard data={weeklyVolume} />
 
           {/* Exercise cards grouped by trend */}
           <div>

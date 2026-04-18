@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import type { HTMLAttributes } from "react";
 import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression, WorkoutSuggestion } from "@/app/types";
+import ConfirmModal from "./ConfirmModal";
 import SetRow from "./SetRow";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
 import { getExerciseRecommendation } from "@/lib/analysis/getExerciseRecommendation";
@@ -237,7 +239,10 @@ export default function ExerciseCard({
   onOpenFocusMode,
   dragHandleProps,
 }: Props) {
+  const [deleteExerciseOpen, setDeleteExerciseOpen] = useState(false);
+
   return (
+    <>
     <div className="bg-zinc-900 border border-zinc-800/80 rounded-2xl overflow-hidden">
 
       {/* Exercise header */}
@@ -286,7 +291,7 @@ export default function ExerciseCard({
             <GripVertical size={16} />
           </div>
           <button
-            onClick={onDelete}
+            onClick={() => setDeleteExerciseOpen(true)}
             className="text-zinc-700 hover:text-red-500 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors"
             title="Delete exercise"
           >
@@ -311,5 +316,17 @@ export default function ExerciseCard({
         onUpdateExerciseRest={onUpdateExerciseRest}
       />
     </div>
+    {deleteExerciseOpen && typeof document !== "undefined" && createPortal(
+      <ConfirmModal
+        title="Delete exercise?"
+        description="All sets in this exercise will be removed."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={() => { setDeleteExerciseOpen(false); onDelete(); }}
+        onCancel={() => setDeleteExerciseOpen(false)}
+      />,
+      document.body
+    )}
+    </>
   );
 }

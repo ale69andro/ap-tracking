@@ -46,7 +46,7 @@ import CoachTestPanel from "../components/CoachTestPanel";
 import PrescriptionQAPanel from "../components/dev/PrescriptionQAPanel";
 import PRToast, { type PRType } from "../components/PRToast";
 import { PRESET_TEMPLATES } from "../constants/presetTemplates";
-import type { Equipment, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate, XpEventType } from "../types";
+import type { Equipment, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate, XpEventType, WorkoutDisplayMode } from "../types";
 import { calculate1RM } from "@/lib/analysis/calculate1RM";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 import { useEffect } from "react";
@@ -54,6 +54,7 @@ import { useDailyCheckIn } from "../hooks/useDailyCheckIn";
 import type { DayType, EnergyLevel } from "../hooks/useDailyCheckIn";
 import { usePrescriptions } from "../hooks/usePrescriptions";
 import { ChevronRight, Plus as LucidePlus } from "lucide-react";
+import WorkoutMiniBar from "../components/WorkoutMiniBar";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,7 @@ function SortableExerciseCard(props: SortableExerciseCardProps) {
   return (
     <div
       ref={setNodeRef}
+      data-exercise-id={props.exercise.id}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
@@ -122,6 +124,7 @@ function SortableExerciseCard(props: SortableExerciseCardProps) {
         opacity: isDragging ? 0.5 : 1,
         position: "relative",
       }}
+      className="scroll-mt-28"
     >
       <ExerciseCard {...props} dragHandleProps={{ ...listeners, ...attributes }} />
     </div>
@@ -152,6 +155,7 @@ export default function Home() {
   const [selectedExercise, setSelectedExercise] = useState<ExerciseProgression | null>(null);
   const [showTemplates, setShowTemplates]   = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null);
+  const [workoutDisplayMode, setWorkoutDisplayMode] = useState<WorkoutDisplayMode>("full");
   const [isEditingName, setIsEditingName]   = useState(false);
   const [pendingExit, setPendingExit]     = useState<"discard" | "save" | null>(null);
   const [confirming, setConfirming]       = useState(false);
@@ -231,6 +235,26 @@ export default function Home() {
     setSessionPRs([]);
     dismissSummary();
   }, [sessionPRs, history, dismissSummary]);
+
+  // Expand from minimized: restores full-screen view and scrolls to the next
+  // actionable set so the user lands in the right place without hunting.
+  const handleExpand = useCallback(() => {
+    setWorkoutDisplayMode("full");
+    if (!activeWorkout) return;
+    // Capture target before the timeout — activeWorkout is stable in this closure.
+    const targetEx = activeWorkout.exercises.find((ex) => ex.sets.some((s) => !s.completed));
+    // Wait one tick for React to commit the full workout DOM before scrolling.
+    setTimeout(() => {
+      if (targetEx) {
+        document
+          .querySelector(`[data-exercise-id="${targetEx.id}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        // All sets done — scroll to the End Workout button.
+        window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      }
+    }, 0);
+  }, [activeWorkout]);
 
   // onSaveSuccess: award XP after a workout is saved.
   // Defined here so it can safely reference `history` (from useWorkout above).
@@ -394,6 +418,11 @@ export default function Home() {
     !!completedSession ||
     isFocused
   );
+
+  // Reset to full-screen view when a workout ends so the next session opens full.
+  useEffect(() => {
+    if (!activeWorkout) setWorkoutDisplayMode("full");
+  }, [activeWorkout]);
 
   // Scroll to top whenever a new workout is started.
   // Runs after useScrollLock's cleanup (which restores the previous scroll position),
@@ -780,53 +809,81 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── Bottom Navigation ───────────────────────────────────────────── */}
-      {!workoutActive && <nav className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/50">
-        <div className="max-w-xl mx-auto flex items-end justify-around px-6 pb-5 pt-2">
+      {/* ── Bottom Navigation (+ MiniBar when workout is minimized) ──── */}
+      {(!workoutActive || workoutDisplayMode === "minimized") && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 flex flex-col">
+          {/* Compact workout bar — only when a workout is minimized */}
+          {activeWorkout && workoutDisplayMode === "minimized" && (
+            <WorkoutMiniBar
+              workout={activeWorkout}
+              activeTimer={activeTimer}
+              onExpand={handleExpand}
+            />
+          )}
 
-          <button
-            onClick={() => setTab("home")}
-            className={`flex flex-col items-center gap-1 transition-colors ${tab === "home" && !workoutActive ? "text-red-500" : "text-zinc-600 hover:text-zinc-400"}`}
-          >
-            <IconHome />
-            <span className="text-[10px] font-semibold tracking-wide">Home</span>
-          </button>
+          <nav className="bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/50">
+            <div className="max-w-xl mx-auto flex items-end justify-around px-6 pb-5 pt-2">
 
-          <button
-            onClick={() => startWorkout()}
-            className="flex flex-col items-center gap-1.5 -mt-5"
-          >
-            <div className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-500 active:bg-red-700 flex items-center justify-center shadow-lg shadow-red-500/30 transition-colors">
-              <IconPlus />
+              <button
+                onClick={() => setTab("home")}
+                className={`flex flex-col items-center gap-1 transition-colors ${tab === "home" && !workoutActive ? "text-red-500" : "text-zinc-600 hover:text-zinc-400"}`}
+              >
+                <IconHome />
+                <span className="text-[10px] font-semibold tracking-wide">Home</span>
+              </button>
+
+              {/* Center FAB: start new workout or resume minimized one */}
+              {workoutActive && workoutDisplayMode === "minimized" ? (
+                <button
+                  onClick={handleExpand}
+                  className="flex flex-col items-center gap-1.5 -mt-5"
+                >
+                  <div className="w-14 h-14 rounded-full bg-zinc-800 ring-1 ring-zinc-700 flex items-center justify-center shadow-lg transition-colors active:bg-zinc-700">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 15l7-7 7 7" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] font-semibold tracking-wide text-zinc-500">Resume</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => startWorkout()}
+                  className="flex flex-col items-center gap-1.5 -mt-5"
+                >
+                  <div className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-500 active:bg-red-700 flex items-center justify-center shadow-lg shadow-red-500/30 transition-colors">
+                    <IconPlus />
+                  </div>
+                  <span className="text-[10px] font-semibold tracking-wide text-zinc-500">Workout</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => setTab("history")}
+                className={`flex flex-col items-center gap-1 transition-colors ${tab === "history" && !workoutActive ? "text-red-500" : "text-zinc-600 hover:text-zinc-400"}`}
+              >
+                <IconHistory />
+                <span className="text-[10px] font-semibold tracking-wide">History</span>
+              </button>
+
+              <button
+                onClick={() => setTab("progress")}
+                className={`flex flex-col items-center gap-1 transition-colors ${tab === "progress" && !workoutActive ? "text-red-500" : "text-zinc-600 hover:text-zinc-400"}`}
+              >
+                <IconProgress />
+                <span className="text-[10px] font-semibold tracking-wide">Progress</span>
+              </button>
+
             </div>
-            <span className="text-[10px] font-semibold tracking-wide text-zinc-500">Workout</span>
-          </button>
-
-          <button
-            onClick={() => setTab("history")}
-            className={`flex flex-col items-center gap-1 transition-colors ${tab === "history" && !workoutActive ? "text-red-500" : "text-zinc-600 hover:text-zinc-400"}`}
-          >
-            <IconHistory />
-            <span className="text-[10px] font-semibold tracking-wide">History</span>
-          </button>
-
-          <button
-            onClick={() => setTab("progress")}
-            className={`flex flex-col items-center gap-1 transition-colors ${tab === "progress" && !workoutActive ? "text-red-500" : "text-zinc-600 hover:text-zinc-400"}`}
-          >
-            <IconProgress />
-            <span className="text-[10px] font-semibold tracking-wide">Progress</span>
-          </button>
-
+          </nav>
         </div>
-      </nav>}
+      )}
 
       {/* ── Main Content ────────────────────────────────────────────────── */}
       <main className="min-h-screen bg-zinc-950 text-zinc-100 px-4 pt-10 pb-32 max-w-xl mx-auto">
 
-        {workoutActive ? (
+        {workoutActive && workoutDisplayMode === "full" ? (
 
-          // ── Active Workout ─────────────────────────────────────────────
+          // ── Active Workout (full view occupies main content) ────────────
           null
 
         ) : tab === "history" ? (
@@ -965,7 +1022,7 @@ export default function Home() {
 
         )}
 
-        {activeWorkout && (
+        {activeWorkout && workoutDisplayMode === "full" && (
           // ── Active Workout ─────────────────────────────────────────────
           <>
             {/* Sticky header */}
@@ -996,6 +1053,16 @@ export default function Home() {
                     className="text-xs font-mono text-zinc-500 tabular-nums mt-1 block"
                   />
                 </div>
+                {/* Minimize — collapses workout to compact bar */}
+                <button
+                  onClick={() => setWorkoutDisplayMode("minimized")}
+                  className="text-zinc-600 hover:text-zinc-400 transition-colors py-1.5 px-2 rounded-xl hover:bg-zinc-800 shrink-0 mt-0.5"
+                  aria-label="Minimize workout"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
                 <button
                   onClick={() => setPendingExit("discard")}
                   className="text-zinc-600 hover:text-zinc-400 text-xs font-semibold transition-colors py-1.5 px-3 rounded-xl hover:bg-zinc-800 shrink-0 mt-0.5"
