@@ -183,6 +183,50 @@ function getVolumeInsight(
   return "Training distribution looks consistent this week.";
 }
 
+// ─── Preview Text ─────────────────────────────────────────────────────────────
+
+/**
+ * Returns a short (≤50 char) summary sentence for the VolumePreviewCard.
+ * Follows the same priority order as getVolumeInsight but produces terse output.
+ */
+export function getVolumePreviewText(data: WeeklyVolumeResult): string {
+  if (!data.hasData) return "No volume data yet";
+
+  const activeNow = data.groups.filter((g) => g.current > 0);
+  if (activeNow.length === 0) return "No sessions logged this week";
+
+  // Missing muscle (trained last week, absent this week)
+  const missing = data.groups
+    .filter((g) => g.current === 0 && g.previous > 0)
+    .sort((a, b) => b.previous - a.previous)[0];
+  if (missing) return `${missing.group} not trained yet this week`;
+
+  // Strong imbalance — one group clearly dominates by volume
+  if (activeNow.length >= 2) {
+    const sorted = [...activeNow].sort((a, b) => b.current - a.current);
+    const top    = sorted[0];
+    const second = sorted[1];
+    if (top.current >= 2 * second.current) {
+      return `${top.group} dominating volume this week`;
+    }
+  }
+
+  // Both spike and drop vs last week
+  const spiked  = data.groups.filter((g) => g.previous > 0 && g.deltaPercent > 50);
+  const dropped = data.groups.filter(
+    (g) => g.current > 0 && g.previous > 0 && g.deltaPercent < -35,
+  );
+  if (spiked.length > 0 && dropped.length > 0) {
+    return `${spiked[0].group} up · ${dropped[0].group} down vs last week`;
+  }
+  if (spiked.length > 0) return `${spiked[0].group} volume spiked this week`;
+  if (dropped.length > 0) return `${dropped[0].group} volume dropped this week`;
+
+  if (activeNow.length >= 3) return "Volume balanced this week";
+  if (activeNow.length === 1) return `Only ${activeNow[0].group} trained so far`;
+  return "Volume on track";
+}
+
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 /**

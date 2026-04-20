@@ -59,15 +59,15 @@ export default function ExerciseDetailSheet({ progression, history, onClose }: P
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-2xl shadow-2xl pb-8">
+      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-2xl shadow-2xl max-h-[85vh] flex flex-col">
 
         {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 bg-zinc-700 rounded-full" />
         </div>
 
         {/* Header */}
-        <div className="flex items-start justify-between px-5 pt-3 pb-4 border-b border-zinc-800">
+        <div className="flex items-start justify-between px-5 pt-3 pb-4 border-b border-zinc-800 shrink-0">
           <div className="min-w-0 pr-4">
             <h2 className="text-lg font-black text-white">{name}</h2>
             {muscleGroups.length > 0 && (
@@ -82,7 +82,7 @@ export default function ExerciseDetailSheet({ progression, history, onClose }: P
           </button>
         </div>
 
-        <div className="px-5 pt-4 space-y-5">
+        <div className="overflow-y-auto px-5 pt-4 space-y-5 pb-8">
 
           {/* Hero stat */}
           <div className="flex items-center gap-4">
