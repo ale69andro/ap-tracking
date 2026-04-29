@@ -1,20 +1,25 @@
 "use client";
 
 import { useMemo } from "react";
-import type { WorkoutSession, WorkoutTemplate, ExerciseProgression, ExerciseSession, UserProfile } from "@/app/types";
+import type { WorkoutSession, WorkoutTemplate, ExerciseProgression, ExerciseSession, UserProfile, DailyCheckIn } from "@/app/types";
 import { computeSessionScore, computeTrend } from "@/app/lib/progression";
 import { getEffectiveSets } from "@/app/lib/workout";
 import { getSessionDate } from "@/app/hooks/useWorkout";
 import { getDefaultRepRange } from "@/app/lib/repRangeDefaults";
 import { analyzeExerciseHistory } from "@/lib/analysis/analyzeExerciseHistory";
 import { getTopSet } from "@/lib/analysis/exerciseMetrics";
+import { buildTrainingProfile } from "@/lib/analysis/buildTrainingProfile";
+import { getExerciseRecommendation } from "@/lib/analysis/getExerciseRecommendation";
+import { computeMuscleGroupLoadMap } from "@/lib/analysis/smartCoach";
 
 export function useProgression(
   history: WorkoutSession[],
   templates: WorkoutTemplate[] = [],
-  experience?: UserProfile["experience"],
+  profile?: UserProfile,
+  dailyCheckIn?: DailyCheckIn | null,
 ): ExerciseProgression[] {
   return useMemo(() => {
+    const trainingProfile = profile ? buildTrainingProfile(profile, dailyCheckIn) : undefined;
     // ── Build rep-range map (template-aware, most-recently-used wins) ──────────
     // Step 1: find the latest startedAt per templateId from history
     const templateLastUsed = new Map<string, number>();
@@ -52,7 +57,7 @@ export function useProgression(
     );
     for (const name of allTemplateExerciseNames) {
       if (!repRangeMap.has(name)) {
-        repRangeMap.set(name, getDefaultRepRange(name, experience));
+        repRangeMap.set(name, getDefaultRepRange(name, profile?.experience));
       }
     }
 
@@ -120,6 +125,20 @@ export function useProgression(
       });
     });
 
+    // Second pass: attach recommendation to each entry using full muscle-group context.
+    // muscleGroupLoadMap requires all entries to be built first.
+    const muscleGroupLoadMap = computeMuscleGroupLoadMap(entries);
+    for (const entry of entries) {
+      entry.recommendation = getExerciseRecommendation({
+        exerciseName:       entry.name,
+        sessions:           entry.recentSessions,
+        repRange:           entry.repRange,
+        trainingProfile,
+        muscleGroups:       entry.muscleGroups,
+        muscleGroupContext: muscleGroupLoadMap,
+      });
+    }
+
     return entries.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
-  }, [history, templates, experience]);
+  }, [history, templates, profile, dailyCheckIn]);
 }

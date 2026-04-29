@@ -1,4 +1,4 @@
-import type { ProgressionInterpretation, UserProfile, ExerciseSession, ExerciseProgression } from "@/app/types";
+import type { ProgressionInterpretation, TrainingProfile, ExerciseSession, ExerciseProgression } from "@/app/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ type VolumeContext = {
 
 type SmartCoachInput = {
   interpretation: ProgressionInterpretation;
-  profile: UserProfile;
+  trainingProfile: TrainingProfile;
   metrics?: SmartCoachMetrics;
   recentSessions?: ExerciseSession[];
   muscleGroups?: string[];
@@ -97,7 +97,7 @@ function deriveVolumeContext(sessions: ExerciseSession[]): VolumeContext {
  *
  * Rules:
  * - interpretation.status is the primary signal
- * - profile (experience, goal, sleepQuality) personalizes the output
+ * - profile (experience, goal, recoveryTier, trainingDaysPerWeek) personalizes the output
  * - recentSessions feeds a lightweight exercise-level volume context
  * - muscleGroups + muscleGroupContext feed a combined muscle-group load signal
  * - mappedStatus is NOT modified — only the recommendation text changes
@@ -105,14 +105,14 @@ function deriveVolumeContext(sessions: ExerciseSession[]): VolumeContext {
  */
 export function getSmartRecommendation({
   interpretation,
-  profile,
+  trainingProfile,
   metrics = {},
   recentSessions = [],
   muscleGroups = [],
   muscleGroupContext,
 }: SmartCoachInput): string {
   const { status } = interpretation;
-  const { experience, goal, sleepQuality } = profile;
+  const { experience, goal, recoveryTier, trainingDaysPerWeek } = trainingProfile;
   const { suggestedNextWeight: w, suggestedRepRange: r, confidence } = metrics;
   const { recentVolumeLevel, sessionCount } = deriveVolumeContext(recentSessions);
 
@@ -136,6 +136,22 @@ export function getSmartRecommendation({
         return goal === "strength"
           ? "Add 2.5 kg next session — small, consistent weight jumps compound fast"
           : "Push for one more rep first, then add a set once the rep target is hit";
+      }
+      // Recovery is the limiter — structural changes won't help until it's addressed.
+      if (recoveryTier === "low") {
+        return "Recovery is the limiting factor right now — hold load and prioritise rest before making any structural changes";
+      }
+      // Training frequency context: too much exposure → recovery is the limiter;
+      // too little → intensity/effort is more likely the gap.
+      if (trainingDaysPerWeek > 5) {
+        return mgLoad === "high"
+          ? "High training frequency and muscle group load — give this muscle more time between sessions before adding stress"
+          : "Training frequently — a stall at this point often means recovery, not effort; consider a rest day before pushing again";
+      }
+      if (trainingDaysPerWeek <= 3) {
+        return goal === "strength"
+          ? "Low frequency — when you do train this, apply more intensity; even one extra hard set can restart progress"
+          : "Only a few sessions per week — maximise each one with an extra rep or a harder top set before adding volume";
       }
       // Intermediate / advanced: volume context refines the advice
       if (recentVolumeLevel === "low") {
@@ -164,9 +180,9 @@ export function getSmartRecommendation({
 
     // ── Fatigue dip: recent drop after a positive trend ───────────────────────
     case "fatigue_dip": {
-      if (sleepQuality === "low") {
-        // Sleep is likely the driver — adjusting load won't fix the root cause
-        return "Sleep is likely limiting output — hold load and focus on recovery before making any changes";
+      if (recoveryTier === "low") {
+        // Poor recovery (sleep + stress or frequency) is likely the driver
+        return "Recovery is likely the limiter — hold load and prioritise sleep and rest before making any changes";
       }
       if (recentVolumeLevel === "high") {
         // Muscle-group context strengthens the fatigue signal if load is also high
@@ -174,11 +190,11 @@ export function getSmartRecommendation({
           ? "Load on this muscle group is high — hold and reduce a set if the dip continues next session"
           : "Volume may be a factor — hold load and drop a set if the dip continues next session";
       }
-      if (sleepQuality === "high") {
+      if (recoveryTier === "high") {
         // Recovery is fine — may be a one-off; monitor before reacting
         return "Recovery looks solid — monitor next session; if the dip continues, consider a small load reduction";
       }
-      // Medium sleep, medium volume: standard hold-steady
+      // Medium recovery, medium volume: standard hold-steady
       return "Keep the load where it is and focus on clean reps — output will come back";
     }
 
@@ -187,8 +203,8 @@ export function getSmartRecommendation({
       if (experience === "beginner") {
         return "Step back 10% and rebuild with consistent reps — beginners recover fast with steady, quality work";
       }
-      if (sleepQuality === "low") {
-        return "Recovery is compromised — deload now and fix sleep before resuming progression";
+      if (recoveryTier === "low") {
+        return "Recovery is compromised — deload now and address sleep and stress before resuming progression";
       }
       // High exercise volume + repeated exposure: use muscle-group context to calibrate the message
       if (recentVolumeLevel === "high" && sessionCount >= 5) {

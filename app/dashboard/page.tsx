@@ -6,19 +6,17 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import ExerciseCard from "../components/ExerciseCard";
 import FocusedExerciseOverlay from "../components/FocusedExerciseOverlay";
-import ProgressionCard from "../components/ProgressionCard";
 import ExerciseDetailSheet from "../components/ExerciseDetailSheet";
 import WorkoutTimer from "../components/WorkoutTimer";
 import TemplatesSheet from "../components/TemplatesSheet";
 import WorkoutDetailSheet from "../components/WorkoutDetailSheet";
 import WorkoutSummaryScreen from "../components/WorkoutSummaryScreen";
 import SessionMomentumToast from "../components/SessionMomentumToast";
-import HistoryScreen from "../components/HistoryScreen";
+import HistoryTab from "../components/dashboard/HistoryTab";
 import ProgressScreen from "../components/ProgressScreen";
 import ProfileSetupScreen from "../components/ProfileSetupScreen";
 import ProfileEditSheet from "../components/ProfileEditSheet";
-import LevelBadge from "../components/LevelBadge";
-import { useWorkout, getSessionDate } from "../hooks/useWorkout";
+import { useWorkout } from "../hooks/useWorkout";
 import { useFocusedExercise } from "../hooks/useFocusedExercise";
 import { getExerciseSuggestion } from "@/lib/analysis/getWorkoutSuggestion";
 import { useXp } from "../hooks/useXp";
@@ -34,10 +32,10 @@ import { useWakeLock } from "../hooks/useWakeLock";
 import AddExerciseModal from "../components/AddExerciseModal";
 import ConfirmModal from "../components/ConfirmModal";
 import UpdatePlanModal from "../components/UpdatePlanModal";
-import TrainingDayCard from "../components/TrainingDayCard";
 import TrainingPlanSheet from "../components/TrainingPlanSheet";
 import DailyCheckIn from "../components/DailyCheckIn";
 import { computeMuscleGroupLoadMap } from "@/lib/analysis/smartCoach";
+import { buildTrainingProfile } from "@/lib/analysis/buildTrainingProfile";
 import { getTrainingDayHint } from "@/app/lib/trainingDayHint";
 import { COACH_TEST_SCENARIOS, COACH_TEST_INITIAL } from "../constants/coachTestScenarios";
 import type { CoachTestState } from "../constants/coachTestScenarios";
@@ -53,8 +51,9 @@ import { useEffect } from "react";
 import { useDailyCheckIn } from "../hooks/useDailyCheckIn";
 import type { DayType, EnergyLevel } from "../hooks/useDailyCheckIn";
 import { usePrescriptions } from "../hooks/usePrescriptions";
-import { ChevronRight, Plus as LucidePlus } from "lucide-react";
+import { Plus as LucidePlus } from "lucide-react";
 import WorkoutMiniBar from "../components/WorkoutMiniBar";
+import HomeTab from "../components/dashboard/HomeTab";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -194,7 +193,18 @@ export default function Home() {
     awardXp,
   } = useXp(userId ?? null);
 
-  const { submitCheckIn } = useDailyCheckIn(userId);
+  const { submitCheckIn, todayCheckIn } = useDailyCheckIn(userId);
+
+  const effectiveProfile = useMemo(() => {
+    if (!profile) return undefined;
+    if (!coachTest.profileOverride) return profile;
+    return { ...profile, ...coachTest.profileOverride };
+  }, [profile, coachTest.profileOverride]);
+
+  const trainingProfile = useMemo(
+    () => (effectiveProfile ? buildTrainingProfile(effectiveProfile, todayCheckIn) : undefined),
+    [effectiveProfile, todayCheckIn],
+  );
 
   // Stable ref so useWorkout always has a callback without history being needed yet.
   const onSaveSuccessRef = useRef<(savedWorkout: WorkoutSession) => Promise<void>>(
@@ -206,6 +216,7 @@ export default function Home() {
     completedSession,
     history,
     activeTimer,
+    badDaySignal,
     structureChanged,
     buildStructuralExercises,
     addExercise,
@@ -226,7 +237,7 @@ export default function Home() {
     adjustTimer,
     extendTimer,
     dismissSummary,
-  } = useWorkout(userId, profile?.restTimerSound ?? false, (w) => onSaveSuccessRef.current(w));
+  } = useWorkout(userId, profile?.restTimerSound ?? false, (w) => onSaveSuccessRef.current(w), trainingProfile);
 
   const { prescriptions, getPrescription, getActivePrescriptions, acceptPrescription, consumePrescriptions, clearPrescription } = usePrescriptions(userId);
 
@@ -461,16 +472,11 @@ export default function Home() {
     clearPlan: clearTrainingPlan,
   } = useTrainingPlan(userId);
 
-  const progressions = useProgression(history, templates, profile?.experience);
+  const progressions = useProgression(history, templates, effectiveProfile, todayCheckIn);
 
   // ── Coach test overrides (dev only) ───────────────────────────────────────
   const activeScenario = COACH_TEST_SCENARIOS.find((s) => s.id === coachTest.scenarioId) ?? null;
   const effectiveProgressions = activeScenario?.progressions ?? progressions;
-  const effectiveProfile = useMemo(
-    () => (coachTest.profileOverride && profile ? { ...profile, ...coachTest.profileOverride } : profile),
-    [profile, coachTest.profileOverride],
-  );
-
   const muscleLoadMap = useMemo(
     () => computeMuscleGroupLoadMap(effectiveProgressions),
     [effectiveProgressions],
@@ -889,7 +895,7 @@ export default function Home() {
         ) : tab === "history" ? (
 
           // ── History ────────────────────────────────────────────────────
-          <HistoryScreen
+          <HistoryTab
             history={history}
             onStartWorkout={() => { setTab("home"); startWorkout(); }}
             onDeleteWorkout={deleteWorkout}
@@ -898,127 +904,35 @@ export default function Home() {
         ) : tab === "progress" ? (
 
           // ── Progress ───────────────────────────────────────────────────
-          <ProgressScreen progressions={effectiveProgressions} onTapExercise={setSelectedExercise} profile={effectiveProfile ?? undefined} nextDay={nextDay} templates={templates} />
+          <ProgressScreen progressions={effectiveProgressions} onTapExercise={setSelectedExercise} nextDay={nextDay} templates={templates} />
 
         ) : (
 
           // ── Dashboard ──────────────────────────────────────────────────
-          <>
-            <header className="mb-8 flex items-start justify-between">
-              <div>
-                <p className="text-red-500 text-[11px] font-bold tracking-widest uppercase mb-2">
-                  AP-Tracking
-                </p>
-                <h1 className="text-4xl font-black text-white tracking-tight leading-none">
-                  Dashboard
-                </h1>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <LevelBadge level={level} onClick={() => setShowProfileSheet(true)} />
-                <button
-                  onClick={() => setShowProfileSheet(true)}
-                  className="w-9 h-9 rounded-full bg-zinc-800 ring-1 ring-zinc-700 flex items-center justify-center text-sm font-black text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
-                >
-                  {user?.email?.[0]?.toUpperCase() ?? "?"}
-                </button>
-              </div>
-            </header>
-
-            <button
-              onClick={() => startWorkout()}
-              className="w-full py-5 rounded-2xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-base tracking-widest uppercase transition-all shadow-[0_0_24px_rgba(239,68,68,0.35)] hover:shadow-[0_0_36px_rgba(239,68,68,0.5)] mb-4"
-            >
-              <span className="inline-flex items-center gap-2"><LucidePlus size={16} /> Start Workout</span>
-            </button>
-
-            <button
-              onClick={() => setShowTemplates(true)}
-              className="w-full flex items-center justify-between bg-zinc-900 border border-zinc-800/60 rounded-2xl px-4 py-3 mb-4 hover:border-zinc-700 transition-colors"
-            >
-              <span className="text-sm font-semibold text-zinc-400">Templates</span>
-              <span className="inline-flex items-center gap-0.5 text-xs text-zinc-600">
-                {templates.length > 0 ? `${templates.length} saved` : "Create one"} <ChevronRight size={13} />
-              </span>
-            </button>
-
-
-            <TrainingDayCard
-              plan={trainingPlan}
-              nextDay={nextDay}
-              nextDayIndex={nextDayIndex}
-              templates={allTemplatesForDisplay}
-              lastCompletedDay={lastCompletedDay}
-              lastCompletedAt={lastCompletedAt}
-              coachHint={coachHint}
-              onStart={handleStartFromDay}
-              onSetup={openTrainingPlanSheet}
-              onSkip={(trainingPlan?.days.length ?? 0) > 1 ? () => setShowSkipConfirm(true) : undefined}
-            />
-
-            {/* Progression */}
-            <section className="mb-10">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-white">Progression</h2>
-                {effectiveProgressions.length > 0 && (
-                  <span className="text-[10px] uppercase tracking-widest text-zinc-600">
-                    {effectiveProgressions.length} exercise{effectiveProgressions.length !== 1 ? "s" : ""}
-                  </span>
-                )}
-              </div>
-              {effectiveProgressions.length > 0 ? (
-                <div className="space-y-3">
-                  {effectiveProgressions.map((p) => (
-                    <ProgressionCard
-                      key={p.name}
-                      progression={p}
-                      onTap={() => setSelectedExercise(p)}
-                      activePrescription={getPrescription(p.name)}
-                      onAcceptPrescription={acceptPrescription}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-zinc-700 text-center py-6">Complete a workout to see your progression.</p>
-              )}
-            </section>
-
-            {/* Recent Workouts */}
-            {history.length > 0 && (
-              <section>
-                <div className="flex items-baseline justify-between mb-4">
-                  <h2 className="text-base font-bold text-white">Recent Workouts</h2>
-                  <span className="text-[10px] uppercase tracking-widest text-zinc-600">{history.length} total</span>
-                </div>
-                <div className="space-y-2">
-                  {history.map((w) => {
-                    const mins = Math.round((w.durationSeconds ?? 0) / 60);
-                    const totalSets = w.exercises.reduce((n, e) => n + getEffectiveSets(e.sets).length, 0);
-                    return (
-                      <button
-                        key={w.id}
-                        onClick={() => setSelectedWorkout(w)}
-                        className="w-full flex items-center justify-between bg-zinc-900 border border-zinc-800/60 rounded-2xl px-4 py-3.5 hover:border-zinc-700 transition-colors text-left"
-                      >
-                        <div className="min-w-0 flex-1 pr-4">
-                          <p className="text-sm font-bold text-zinc-100">{w.name}</p>
-                          <p className="text-[11px] text-zinc-600 mt-0.5 truncate">
-                            {w.exercises.map((e) => e.exerciseName).join(", ")}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-xs font-semibold text-zinc-400">{getSessionDate(w)}</p>
-                          <p className="text-[10px] text-zinc-700 mt-0.5">
-                            {mins > 0 ? `${mins} min · ` : ""}
-                            {w.exercises.length} ex · {totalSets} sets
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-          </>
+          <HomeTab
+            userEmail={user?.email}
+            level={level}
+            onOpenProfile={() => setShowProfileSheet(true)}
+            onStartWorkout={() => startWorkout()}
+            onShowTemplates={() => setShowTemplates(true)}
+            userTemplatesCount={templates.length}
+            trainingPlan={trainingPlan}
+            nextDay={nextDay}
+            nextDayIndex={nextDayIndex}
+            allTemplates={allTemplatesForDisplay}
+            lastCompletedDay={lastCompletedDay}
+            lastCompletedAt={lastCompletedAt}
+            coachHint={coachHint}
+            onStartFromDay={handleStartFromDay}
+            onSetupPlan={openTrainingPlanSheet}
+            onSkipDay={(trainingPlan?.days.length ?? 0) > 1 ? () => setShowSkipConfirm(true) : undefined}
+            progressions={effectiveProgressions}
+            getPrescription={getPrescription}
+            acceptPrescription={acceptPrescription}
+            onSelectExercise={setSelectedExercise}
+            history={history}
+            onSelectWorkout={setSelectedWorkout}
+          />
 
         )}
 
@@ -1125,7 +1039,7 @@ export default function Home() {
       </main>
 
       {process.env.NODE_ENV === "development" && (
-        <CoachTestPanel state={coachTest} onChange={setCoachTest} />
+        <CoachTestPanel state={coachTest} onChange={setCoachTest} badDaySignal={badDaySignal} />
       )}
 
       {process.env.NODE_ENV === "development" && (

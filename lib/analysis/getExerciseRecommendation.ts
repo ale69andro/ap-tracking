@@ -1,6 +1,6 @@
 import type {
   ExerciseSession,
-  UserProfile,
+  TrainingProfile,
   ProgressionStatus,
   ExerciseCoachRecommendation,
   ExerciseRecommendationAction,
@@ -24,7 +24,7 @@ export type GetExerciseRecommendationInput = {
   /** Double-progression rep range from the template. Enables load-ceiling logic. */
   repRange?: { min: number; max: number };
   /** Optional — enables personalised coachMessage output. */
-  profile?: UserProfile;
+  trainingProfile?: TrainingProfile;
   /** Muscle groups for this exercise — used with muscleGroupContext. */
   muscleGroups?: string[];
   /** Per-muscle-group load context from computeMuscleGroupLoadMap(). */
@@ -236,7 +236,7 @@ export function getExerciseRecommendation(
     exerciseName,
     sessions,
     repRange,
-    profile,
+    trainingProfile,
     muscleGroups,
     muscleGroupContext,
   } = input;
@@ -320,28 +320,53 @@ export function getExerciseRecommendation(
   // When reduce_load is triggered by the interpretation signal alone, trendKey
   // may be "flat" or "up" — so computeNextTarget can return the same or higher
   // weight. Step back by one equipment increment to align action and target.
-  const adjustedTargetWeight =
+  let adjustedTargetWeight =
     action === "reduce_load" && targetWeight >= last.topWeight
       ? Math.max(+(last.topWeight - inc).toFixed(2), inc)
       : targetWeight;
 
+  // ── intensityStyle tie-breaker ────────────────────────────────────────────
+  // When the progression signal is ambiguous enough for either rep or load
+  // increases, the user's intensity preference breaks the tie.
+  // Only fires on stall/stable statuses where both directions are structurally
+  // valid. Does NOT touch fatigue_dip, regressing, new, or progressing.
+  //
+  // Guards (all must pass before the flip applies):
+  //   - recoveryTier !== "low": don't push load when recovery is compromised
+  //   - confidence !== "low":   need ≥3 sessions before style preference overrides data
+  //   - inc ≤5% of last weight: prevent disproportionate jumps on light exercises
+  let finalAction = action;
+  if (
+    trainingProfile?.intensityStyle === "heavy_low_rep" &&
+    action === "increase_reps" &&
+    (interpStatus === "stalling" || interpStatus === "stable" || interpStatus === "improving_slightly") &&
+    trainingProfile.recoveryTier !== "low" &&
+    confidence !== "low"
+  ) {
+    const bumpPct = last.topWeight > 0 ? inc / last.topWeight : 1;
+    if (bumpPct <= 0.05) {
+      finalAction = "increase_load";
+      adjustedTargetWeight = +(last.topWeight + inc).toFixed(2);
+    }
+  }
+
   // ── Set recommendation ────────────────────────────────────────────────────
-  const setRec = deriveSetRecommendation(action, last.setCount, confidence);
+  const setRec = deriveSetRecommendation(finalAction, last.setCount, confidence);
 
   // ── Status ────────────────────────────────────────────────────────────────
   const status = mapStatus(interpStatus, relevant.length);
 
   // ── Reason ────────────────────────────────────────────────────────────────
-  const reason = buildReason(action, interpStatus, relevant.length);
+  const reason = buildReason(finalAction, interpStatus, relevant.length);
 
   // ── Optional coach message ────────────────────────────────────────────────
-  // Only computed when profile is provided — uses getSmartRecommendation which
-  // takes into account experience, goal, sleepQuality, and muscle-group load.
+  // Only computed when trainingProfile is provided — uses getSmartRecommendation
+  // which takes into account experience, goal, sleepQuality, and muscle-group load.
   let coachMessage: string | undefined;
-  if (profile && analysis.interpretation) {
+  if (trainingProfile && analysis.interpretation) {
     coachMessage = getSmartRecommendation({
       interpretation:    analysis.interpretation,
-      profile,
+      trainingProfile,
       metrics: {
         suggestedNextWeight: adjustedTargetWeight,
         // getSmartRecommendation expects a string here (existing API) — one
@@ -366,7 +391,7 @@ export function getExerciseRecommendation(
     targetSets: setRec?.targetSets,
     setAction:  setRec?.setAction,
     setReason:  setRec?.setReason,
-    action,
+    action: finalAction,
     status,
     confidence,
     reason,

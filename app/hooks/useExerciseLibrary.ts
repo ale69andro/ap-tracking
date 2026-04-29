@@ -54,7 +54,6 @@ export function useExerciseLibrary(userId: string | null) {
     muscleGroups: string[],
     equipment?: Equipment,
   ): Promise<LibraryExercise> => {
-    console.log("🔥 CREATE USER EXERCISE CALLED");
     if (!userId) throw new Error("Not authenticated");
     const normalizedName = name.trim().replace(/\s+/g, " ");
     const normalizedLower = normalizedName.toLowerCase();

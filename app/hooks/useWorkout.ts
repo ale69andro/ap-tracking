@@ -10,10 +10,13 @@ import type {
   TemplateExercise,
   ExercisePrescription,
   ExerciseStructureSnapshot,
+  TrainingProfile,
 } from "@/app/types";
 import { createClient } from "@/lib/supabase/client";
 import { arrayMove } from "@dnd-kit/sortable";
 import { applyPrescriptionToSets, hasStructureChanged } from "@/app/lib/workout";
+import { detectBadDayDuringWorkout } from "@/lib/analysis/detectBadDayDuringWorkout";
+import type { BadDaySignal } from "@/lib/analysis/detectBadDayDuringWorkout";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -158,6 +161,7 @@ export function useWorkout(
   userId: string | null,
   restTimerSound = false,
   onSaveSuccess?: (workout: WorkoutSession) => void,
+  trainingProfile?: TrainingProfile,
 ) {
   // Active workout: per-device in localStorage, tagged with userId for safety.
   // We load eagerly (sync) to avoid a flash, then validate userId in an effect.
@@ -176,6 +180,7 @@ export function useWorkout(
 
   const [completedSession, setCompletedSession] = useState<WorkoutSession | null>(null);
   const [activeTimer, setActiveTimer]           = useState<ActiveTimer | null>(null);
+  const [badDaySignal, setBadDaySignal]         = useState<BadDaySignal | null>(null);
   const [, setTick]                             = useState(0);
   const intervalRef       = useRef<ReturnType<typeof setInterval> | null>(null);
   const restTimerSoundRef = useRef(restTimerSound);
@@ -316,11 +321,20 @@ export function useWorkout(
   };
 
   /**
-   * Finds the most recent SessionExercise block globally.
-   * No templateId preference — always returns the newest match across all sessions.
-   * Used as the single restore source for both structure and weights.
+   * Finds the most recent SessionExercise block for an exercise.
+   * When preferTemplateId is provided, sessions from that template are tried first
+   * before falling back to the global newest match. This prevents a same-named
+   * exercise in a different template (e.g. barbell vs. dumbbell variant) from
+   * silently overwriting the structure of the intended template.
    */
-  const findGlobalPreviousExercise = (exerciseName: string): SessionExercise | undefined => {
+  const findGlobalPreviousExercise = (exerciseName: string, preferTemplateId?: string): SessionExercise | undefined => {
+    if (preferTemplateId) {
+      for (const session of history) {
+        if (session.templateId !== preferTemplateId) continue;
+        const ex = session.exercises.find((e) => e.exerciseName === exerciseName);
+        if (ex && ex.sets.length > 0) return ex;
+      }
+    }
     for (const session of history) {
       const ex = session.exercises.find((e) => e.exerciseName === exerciseName);
       if (ex && ex.sets.length > 0) return ex;
@@ -336,8 +350,8 @@ export function useWorkout(
     prescriptions?: ExercisePrescription[],
   ) => {
     const exercises = (templateExercises ?? []).map((ex) => {
-      // Single restore source: globally newest session for this exercise.
-      const prev = findGlobalPreviousExercise(ex.name);
+      // Single restore source: prefer same-template history, fall back to global.
+      const prev = findGlobalPreviousExercise(ex.name, templateId);
 
       // Active prescription for this exercise — applied to working sets only.
       const prescription = prescriptions?.find(
@@ -422,6 +436,7 @@ export function useWorkout(
           }))
         : undefined;
 
+    setBadDaySignal(null);
     setActiveWorkout({
       id: uid(),
       name,
@@ -529,6 +544,21 @@ export function useWorkout(
         : prev
     );
     startTimer(setId, restSeconds);
+
+    // Bad-day detection: only evaluate working sets, don't touch warm-ups
+    if (exercise && set && set.type !== "Warm-up") {
+      const updatedSets = exercise.sets.map((s) =>
+        s.id === setId ? { ...s, completed: true } : s,
+      );
+      const signal = detectBadDayDuringWorkout({
+        currentExerciseName: exercise.exerciseName,
+        currentSets:         updatedSets,
+        recentSessions:      history,
+        trainingProfile,
+        recoveryTier:        trainingProfile?.recoveryTier,
+      });
+      if (signal.detected) setBadDaySignal(signal);
+    }
   };
 
   const uncompleteSet = (exId: string, setId: string) => {
@@ -590,12 +620,18 @@ export function useWorkout(
 
     if (error) {
       console.error("Failed to save workout:", error);
+      // localStorage is NOT cleared here — the active workout survives so the
+      // user can retry saving without losing their session data.
       throw error;
     }
 
+    // Only reached on confirmed DB success.
+    // setActiveWorkout(null) triggers the persistence effect which calls
+    // localStorage.removeItem(ACTIVE_KEY) — intentionally after the write confirms.
     setHistory((prev) => [session, ...prev]);
     setActiveWorkout(null);
     setCompletedSession(session);
+    setBadDaySignal(null);
     onSaveSuccess?.(session);
 
     // Consume active prescriptions for all exercises in this session.
@@ -674,6 +710,7 @@ export function useWorkout(
     completedSession: userId ? completedSession : null,
     history:          userId ? history.filter((s) => s.status === "completed") : [],
     activeTimer,
+    badDaySignal,
     structureChanged,
     buildStructuralExercises,
     addExercise,

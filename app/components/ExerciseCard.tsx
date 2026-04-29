@@ -5,7 +5,6 @@ import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression, Wo
 import ConfirmModal from "./ConfirmModal";
 import SetRow from "./SetRow";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
-import { getExerciseRecommendation } from "@/lib/analysis/getExerciseRecommendation";
 import type { ExerciseRecommendationAction } from "@/app/types";
 
 const ACTION_LABEL: Partial<Record<ExerciseRecommendationAction, string>> = {
@@ -65,12 +64,9 @@ export function ExerciseCardBody({
       {/* Coach block */}
       {progression && (() => {
         const targets = getExerciseTargets(progression);
-        const recommendation = getExerciseRecommendation({
-          exerciseName: exercise.exerciseName,
-          sessions:     progression.recentSessions,
-          repRange:     progression.repRange,
-        });
-        const hasData = targets.last || targets.best || recommendation.action !== "new";
+        // Pre-computed by useProgression with TrainingProfile and muscle-group context.
+        const recommendation = progression.recommendation;
+        const hasData = targets.last || targets.best || (recommendation !== undefined && recommendation.action !== "new");
         if (!hasData) {
           return (
             <div className="px-4 py-2 border-b border-zinc-800/40">
@@ -90,7 +86,7 @@ export function ExerciseCardBody({
                 Best · {targets.best.weight} kg × {targets.best.reps}
               </p>
             )}
-            {recommendation.action !== "new" && recommendation.confidence !== "low" && recommendation.targetWeight !== null && (
+            {recommendation && recommendation.action !== "new" && recommendation.confidence !== "low" && recommendation.targetWeight !== null && (
               <div className="pt-1">
                 <p className="text-[10px] uppercase tracking-widest text-red-500 font-semibold mb-0.5">
                   {ACTION_LABEL[recommendation.action] ?? "Target today"}

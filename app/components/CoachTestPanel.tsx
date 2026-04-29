@@ -12,15 +12,17 @@ import type { UserProfile } from "@/app/types";
 import { COACH_TEST_SCENARIOS, COACH_TEST_INITIAL } from "@/app/constants/coachTestScenarios";
 import type { CoachTestState } from "@/app/constants/coachTestScenarios";
 import { CHECK_IN_PRESETS } from "@/app/constants/checkInTestPresets";
+import type { BadDaySignal } from "@/lib/analysis/detectBadDayDuringWorkout";
 import { useState } from "react";
 import { X, FlaskConical } from "lucide-react";
 
 interface Props {
   state: CoachTestState;
   onChange: (next: CoachTestState) => void;
+  badDaySignal?: BadDaySignal | null;
 }
 
-export default function CoachTestPanel({ state, onChange }: Props) {
+export default function CoachTestPanel({ state, onChange, badDaySignal }: Props) {
   const [open, setOpen] = useState(false);
 
   const isActive = state.scenarioId !== null || state.profileOverride !== null || state.checkInPresetId !== null;
@@ -132,6 +134,48 @@ export default function CoachTestPanel({ state, onChange }: Props) {
                     { value: "high",   label: "High"   },
                   ]}
                 />
+                <ProfileRow
+                  label="Stress"
+                  value={state.profileOverride?.stressLevel ?? ""}
+                  onChange={(v) => setProfileField("stressLevel", v as UserProfile["stressLevel"] | "")}
+                  options={[
+                    { value: "low",      label: "Low"      },
+                    { value: "moderate", label: "Moderate" },
+                    { value: "high",     label: "High"     },
+                  ]}
+                />
+                <ProfileRow
+                  label="Days/wk"
+                  value={state.profileOverride?.trainingDaysPerWeek !== undefined ? String(state.profileOverride.trainingDaysPerWeek) : ""}
+                  onChange={(v) => {
+                    if (v === "") {
+                      const next = { ...state.profileOverride };
+                      delete next.trainingDaysPerWeek;
+                      onChange({ ...state, profileOverride: Object.keys(next).length ? next : null });
+                    } else {
+                      onChange({ ...state, profileOverride: { ...state.profileOverride, trainingDaysPerWeek: Number(v) } });
+                    }
+                  }}
+                  options={[
+                    { value: "2", label: "2" },
+                    { value: "3", label: "3" },
+                    { value: "4", label: "4" },
+                    { value: "5", label: "5" },
+                    { value: "6", label: "6" },
+                    { value: "7", label: "7" },
+                  ]}
+                />
+                <ProfileRow
+                  label="Intensity"
+                  value={state.profileOverride?.intensityStyle ?? ""}
+                  onChange={(v) => setProfileField("intensityStyle", v as UserProfile["intensityStyle"] | "")}
+                  options={[
+                    { value: "heavy_low_rep", label: "Heavy/low rep" },
+                    { value: "moderate",      label: "Moderate"      },
+                    { value: "mixed",         label: "Mixed"         },
+                    { value: "auto",          label: "Auto"          },
+                  ]}
+                />
               </div>
             </div>
 
@@ -160,6 +204,29 @@ export default function CoachTestPanel({ state, onChange }: Props) {
                 </p>
               )}
             </div>
+
+            {/* Bad-day signal status */}
+            {badDaySignal !== undefined && (
+              <div className="border-t border-zinc-800 pt-3">
+                <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">
+                  Bad-day signal
+                </label>
+                {badDaySignal?.detected ? (
+                  <div className="text-[11px] space-y-0.5">
+                    <span className={`font-semibold ${
+                      badDaySignal.severity === "severe"   ? "text-red-400" :
+                      badDaySignal.severity === "moderate" ? "text-amber-400" :
+                      "text-yellow-400"
+                    }`}>
+                      {badDaySignal.severity}
+                    </span>
+                    <p className="text-zinc-400 leading-snug">{badDaySignal.reason}</p>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-zinc-600">none</span>
+                )}
+              </div>
+            )}
 
             {/* Reset */}
             <button

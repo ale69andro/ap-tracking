@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { ExerciseProgression, ExerciseSession, UserProfile, TrainingDay, WorkoutTemplate } from "@/app/types";
+import type { ExerciseProgression, ExerciseSession, TrainingDay, WorkoutTemplate } from "@/app/types";
 import { computeNextTarget } from "@/app/lib/recommendations";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
-import { getSmartRecommendation, computeMuscleGroupLoadMap } from "@/lib/analysis/smartCoach";
 import SparkLine from "./SparkLine";
 import { CoachLabel } from "./CoachLabel";
 import { getWeeklyVolumeByMuscleGroup } from "@/lib/analysis/getWeeklyVolumeByMuscleGroup";
@@ -107,38 +106,24 @@ function statusToDefaultHeadline(status: ResolvedExerciseStatus): string {
 /**
  * Derives coach action text from the resolved status — not independently from
  * a separate signal. Preserves concrete load targets (highest signal) and
- * smart-coach personalisation where available.
+ * smart-coach personalisation where available via pre-computed coachMessage.
  */
 function buildCoachText(
   p: ExerciseProgression,
   status: ResolvedExerciseStatus,
-  profile?: UserProfile,
-  mgContext?: Record<string, "low" | "medium" | "high">,
 ): string {
-  const interp = p.analysis?.interpretation;
-  const w      = p.analysis?.suggestedNextWeight;
-  const reps   = p.analysis?.suggestedRepRange;
-  const conf   = p.analysis?.confidence;
-
-  const smartCoach = (): string => {
-    if (interp && profile) {
-      return getSmartRecommendation({
-        interpretation:    interp,
-        profile,
-        metrics:           { suggestedNextWeight: w ?? null, suggestedRepRange: reps ?? null, confidence: conf ?? null },
-        recentSessions:    p.recentSessions,
-        muscleGroups:      p.muscleGroups,
-        muscleGroupContext: mgContext,
-      });
-    }
-    return interp?.recommendation ?? "Keep logging to unlock insights";
-  };
+  const interp      = p.analysis?.interpretation;
+  const w           = p.analysis?.suggestedNextWeight;
+  const reps        = p.analysis?.suggestedRepRange;
+  const conf        = p.analysis?.confidence;
+  // Pre-computed by useProgression — includes TrainingProfile + muscle-group context.
+  const coachMessage = p.recommendation?.coachMessage;
 
   switch (status) {
     case "progressing":
-      // Concrete target wins; smart coach as fallback
+      // Concrete target wins; personalized coach message as fallback
       if (w != null && reps != null) return `Keep going — next: ${w} kg × ${reps} reps`;
-      return smartCoach();
+      return coachMessage ?? interp?.recommendation ?? "Keep logging to unlock insights";
 
     case "plateau":
       if (w != null && reps != null) {
@@ -146,7 +131,7 @@ function buildCoachText(
           ? `Plateau detected — push to ${w} kg × ${reps} reps`
           : `Try ${w} kg × ${reps} reps to break the plateau`;
       }
-      return smartCoach();
+      return coachMessage ?? interp?.recommendation ?? "Keep logging to unlock insights";
 
     case "declining":
       if (w != null && reps != null) {
@@ -154,15 +139,14 @@ function buildCoachText(
           ? `Deload to ${w} kg × ${reps} reps — stop the decline`
           : `Step back to ${w} kg × ${reps} reps`;
       }
-      return smartCoach();
+      return coachMessage ?? interp?.recommendation ?? "Keep logging to unlock insights";
 
     case "stable": {
       // fatigue_dip: hold — never push load
       if (interp?.status === "fatigue_dip") {
         return "Hold current load and focus on quality reps — output will recover";
       }
-      // Smart coach or concrete next-target as fallback
-      if (interp && profile) return smartCoach();
+      if (coachMessage) return coachMessage;
       const target = computeNextTarget(p.recentSessions, "flat");
       if (target) {
         const repsStr = target.repsMin === target.repsMax
@@ -184,8 +168,6 @@ function buildCoachText(
  */
 function resolveExerciseCardState(
   p: ExerciseProgression,
-  profile?: UserProfile,
-  mgContext?: Record<string, "low" | "medium" | "high">,
 ): ResolvedExerciseCardState {
   // 1. Support role — neutral framing, no performance judgment
   if (getExerciseRole(p.name) === "support") {
@@ -216,7 +198,7 @@ function resolveExerciseCardState(
 
   const headline  = interp?.title    ?? statusToDefaultHeadline(status);
   const subtitle  = interp?.subtitle ?? null;
-  const coachText = buildCoachText(p, status, profile, mgContext);
+  const coachText = buildCoachText(p, status);
 
   return { status, ...b, badgeLabel: b.label, headline, subtitle, coachText };
 }
@@ -353,8 +335,8 @@ function SectionHeader({ label, color, count }: { label: string; color: string; 
 
 // ─── Focus Today Card ─────────────────────────────────────────────────────────
 
-function FocusTodayCard({ p, onTap, profile, mgContext }: { p: ExerciseProgression; onTap: () => void; profile?: UserProfile; mgContext?: Record<string, "low" | "medium" | "high"> }) {
-  const state = resolveExerciseCardState(p, profile, mgContext);
+function FocusTodayCard({ p, onTap }: { p: ExerciseProgression; onTap: () => void }) {
+  const state = resolveExerciseCardState(p);
 
   return (
     <button
@@ -393,15 +375,11 @@ function FocusTodayCard({ p, onTap, profile, mgContext }: { p: ExerciseProgressi
 function ExerciseCard({
   p,
   onTap,
-  profile,
-  mgContext,
 }: {
   p: ExerciseProgression;
   onTap: () => void;
-  profile?: UserProfile;
-  mgContext?: Record<string, "low" | "medium" | "high">;
 }) {
-  const state        = resolveExerciseCardState(p, profile, mgContext);
+  const state        = resolveExerciseCardState(p);
   const delta        = getDelta(p.recentSessions);
   const sessionCount = p.recentSessions.length;
   const isEarlyData  = sessionCount < 4;
@@ -483,7 +461,6 @@ function ExerciseCard({
 type Props = {
   progressions: ExerciseProgression[];
   onTapExercise: (p: ExerciseProgression) => void;
-  profile?: UserProfile;
   nextDay?: TrainingDay | null;
   templates?: WorkoutTemplate[];
 };
@@ -539,11 +516,10 @@ function groupProgressions(progressions: ExerciseProgression[]) {
     .filter(s => s.items.length > 0);
 }
 
-export default function ProgressScreen({ progressions, onTapExercise, profile, nextDay, templates }: Props) {
+export default function ProgressScreen({ progressions, onTapExercise, nextDay, templates }: Props) {
   const [volumeSheetOpen, setVolumeSheetOpen] = useState(false);
   const overview     = computeOverview(progressions);
   const groups       = groupProgressions(progressions);
-  const mgContext    = computeMuscleGroupLoadMap(progressions);
   const weeklyVolume           = getWeeklyVolumeByMuscleGroup(progressions);
   const adaptiveInsights       = getAdaptiveVolumeInsights(progressions);
   const weeklySetSummaries     = buildWeeklyMuscleSetSummaries(progressions);
@@ -585,7 +561,7 @@ export default function ProgressScreen({ progressions, onTapExercise, profile, n
 
           {/* Focus Today */}
           {focus && (
-            <FocusTodayCard p={focus} onTap={() => onTapExercise(focus)} profile={profile} mgContext={mgContext} />
+            <FocusTodayCard p={focus} onTap={() => onTapExercise(focus)} />
           )}
 
           {/* Volume preview — tap to open detail sheet */}
@@ -634,7 +610,7 @@ export default function ProgressScreen({ progressions, onTapExercise, profile, n
                 <SectionHeader label={group.label} color={group.color} count={group.items.length} />
                 <div className="space-y-4">
                   {group.items.map((p) => (
-                    <ExerciseCard key={p.name} p={p} onTap={() => onTapExercise(p)} profile={profile} mgContext={mgContext} />
+                    <ExerciseCard key={p.name} p={p} onTap={() => onTapExercise(p)} />
                   ))}
                 </div>
               </div>

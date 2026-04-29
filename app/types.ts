@@ -205,6 +205,8 @@ export type ExerciseProgression = {
   analysis?: ExerciseAnalysisResult;
   /** Structured rep range from the template — enables double-progression ceiling logic. */
   repRange?: { min: number; max: number };
+  /** Pre-computed by useProgression — includes TrainingProfile and muscle-group context when profile is available. */
+  recommendation?: ExerciseCoachRecommendation;
 };
 
 export type NextTarget = {
@@ -264,6 +266,16 @@ export type ExerciseAnalysisResult = {
   interpretation?: ProgressionInterpretation;
 };
 
+// ─── Daily Check-in ───────────────────────────────────────────────────────────
+
+export type EnergyLevel = "low" | "medium" | "high";
+export type DayType     = "training" | "rest";
+
+export type DailyCheckIn = {
+  dayType:     DayType;
+  energyLevel: EnergyLevel | null;
+};
+
 // ─── Training Profile Input Types ─────────────────────────────────────────────
 
 export type StressLevel = "low" | "moderate" | "high";
@@ -288,11 +300,19 @@ export type MuscleGroup =
 export type TrainingProfile = {
   /** 0–100 recovery capacity score derived from sleep, stress, frequency, and sleep quality. */
   recoveryScore: number;
+  /** Three-tier recovery readiness derived from sleepQuality + stressLevel + trainingDaysPerWeek. */
+  recoveryTier: "low" | "medium" | "high";
   loadProgressionStyle: LoadProgressionStyle;
   priorityMuscleGroups: MuscleGroup[];
   intensityStyle: IntensityStyle;
   proximityToFailure: ProximityToFailure;
   equipmentAccess: EquipmentAccess;
+  /** Carried through from UserProfile — required for current recommendation logic parity. */
+  experience: "beginner" | "intermediate" | "advanced";
+  goal: "hypertrophy" | "strength" | "recomp";
+  sleepQuality: "low" | "medium" | "high";
+  stressLevel: StressLevel;
+  trainingDaysPerWeek: number;
 };
 
 // ─── User Profile ─────────────────────────────────────────────────────────────

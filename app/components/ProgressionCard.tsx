@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { ExerciseProgression, ExerciseSession, ExerciseTrend, ExerciseRecommendationAction, ExercisePrescription } from "@/app/types";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
-import { getExerciseRecommendation } from "@/lib/analysis/getExerciseRecommendation";
 import type { AcceptPrescriptionParams } from "@/app/hooks/usePrescriptions";
 import SparkLine from "./SparkLine";
 
@@ -76,9 +75,8 @@ export default function ProgressionCard({ progression, onTap, activePrescription
   const delta = buildDelta(recentSessions);
   const [isAccepting, setIsAccepting] = useState(false);
 
-  // Central recommendation engine — no repRange here (trend-based fallback).
-  // recentSessions are already filtered to working sets by useProgression.
-  const recommendation = getExerciseRecommendation({ exerciseName: name, sessions: recentSessions, repRange: progression.repRange });
+  // Pre-computed by useProgression with TrainingProfile and muscle-group context.
+  const recommendation = progression.recommendation;
 
   return (
     <button
@@ -139,7 +137,7 @@ export default function ProgressionCard({ progression, onTap, activePrescription
       </p>
 
       {/* Next session target — from recommendation engine */}
-      {recommendation.action !== "new" && recommendation.confidence !== "low" && recommendation.targetWeight !== null && (
+      {recommendation && recommendation.action !== "new" && recommendation.confidence !== "low" && recommendation.targetWeight !== null && (
         <div className="mt-2 pt-2 border-t border-zinc-800/60">
           <div className="flex items-baseline justify-between">
             <p className="text-[10px] text-zinc-600 font-semibold uppercase tracking-widest">
