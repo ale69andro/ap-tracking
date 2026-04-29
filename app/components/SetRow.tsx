@@ -18,6 +18,7 @@ type Props = {
   index: number;
   isActive: boolean;
   activeTimer: ActiveTimer | null;
+  isCoachInfluenced?: boolean;
   onUpdate: (field: keyof Omit<ExerciseSet, "id" | "completed" | "completedAt">, value: string) => void;
   onComplete: () => void;
   onUncomplete: () => void;
@@ -32,6 +33,7 @@ export default function SetRow({
   index,
   isActive,
   activeTimer,
+  isCoachInfluenced,
   onUpdate,
   onComplete,
   onUncomplete,
@@ -131,7 +133,7 @@ export default function SetRow({
         set.completed
           ? ""
           : isActive
-          ? "bg-red-500/[0.08] border border-red-500/30 shadow-[0_0_24px_rgba(239,68,68,0.14)]"
+          ? `bg-red-500/[0.08] border shadow-[0_0_24px_rgba(239,68,68,0.14)] ${isCoachInfluenced ? "border-red-500/30 ring-1 ring-amber-500/20" : "border-red-500/30"}`
           : "opacity-50"
       }`}>
 
@@ -191,12 +193,15 @@ export default function SetRow({
                 <button
                   type="button"
                   onClick={() => setShowControls((v) => !v)}
-                  className={`flex items-center justify-center w-full h-full rounded-lg transition-colors ${showControls ? "bg-zinc-800" : "bg-zinc-800/50 hover:bg-zinc-700/60"}`}
+                  className={`flex flex-col items-center justify-center w-full h-full rounded-lg transition-colors ${showControls ? "bg-zinc-800" : "bg-zinc-800/50 hover:bg-zinc-700/60"}`}
                   title={showControls ? "Hide options" : "Set options"}
                 >
                   <span className={`text-xs font-black tabular-nums ${SET_TYPE_STYLES[set.type]}`}>
                     {set.type === "Warm-up" ? "W" : set.type === "Drop Set" ? "D" : index + 1}
                   </span>
+                  {isCoachInfluenced && (
+                    <span className="text-[8px] leading-none text-amber-500/70 mt-0.5">⚡</span>
+                  )}
                 </button>
 
                 {/* Weight */}

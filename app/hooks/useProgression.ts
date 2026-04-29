@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import type { WorkoutSession, WorkoutTemplate, ExerciseProgression, ExerciseSession, UserProfile, DailyCheckIn } from "@/app/types";
 import { computeSessionScore, computeTrend } from "@/app/lib/progression";
 import { getEffectiveSets } from "@/app/lib/workout";
-import { getSessionDate } from "@/app/hooks/useWorkout";
+import { getSessionDate } from "@/app/lib/dateUtils";
 import { getDefaultRepRange } from "@/app/lib/repRangeDefaults";
 import { analyzeExerciseHistory } from "@/lib/analysis/analyzeExerciseHistory";
 import { getTopSet } from "@/lib/analysis/exerciseMetrics";

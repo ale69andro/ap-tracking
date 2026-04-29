@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { WorkoutSession } from "@/app/types";
-import { getSessionDate } from "@/app/hooks/useWorkout";
+import { getSessionDate } from "@/app/lib/dateUtils";
 import { computeWorkoutHighlight, getEffectiveSets, getCompletedSets } from "@/app/lib/workout";
 import ConfirmModal from "./ConfirmModal";
 import { X } from "lucide-react";

@@ -48,9 +48,11 @@ export type WorkoutSession = {
   trainingDayIndex?: number; // 0-based index into TrainingPlan.days[] when started from a plan
   name: string;
   status: "active" | "completed";
+  /** @deprecated Legacy migration field — do not use in new code */
   startedAt: number;       // Date.now() — 0 for migrated records without timestamp
   endedAt?: number;
   durationSeconds?: number;
+  /** @deprecated Legacy migration field — do not use in new code */
   date?: string;           // legacy: pre-formatted display date for old records
   exercises: SessionExercise[];
   /** Snapshot of the template's exercise list at session start — used for structureChanged detection. Only set when started from a template. */
@@ -439,7 +441,7 @@ export type ExercisePrescription = {
   target_reps_max: number;
   target_sets: number | null;
   action: ExerciseRecommendationAction;
-  confidence: string;
+  confidence: "low" | "medium" | "high";
   reason: string | null;
   accepted_at: string;   // ISO timestamptz
   consumed_at: string | null;
@@ -522,14 +524,11 @@ export type MuscleAdaptiveVolumeRecommendation = {
   recommendation: string;
 };
 
-// ─── Backward-compat alias ────────────────────────────────────────────────────
-
-export type Workout = WorkoutSession;
-
 // ─── XP / Level / Streak ──────────────────────────────────────────────────────
 
 export type XpEventType =
-  | "daily_login"        // legacy — kept for old DB rows, no longer awarded
+  /** @deprecated Legacy — kept for existing DB rows, no longer awarded */
+  | "daily_login"
   | "daily_check_in"     // training day check-in (5 XP)
   | "rest_day_check_in"
   | "workout_completed"

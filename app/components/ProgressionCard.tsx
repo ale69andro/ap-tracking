@@ -1,16 +1,9 @@
 import { useState } from "react";
-import type { ExerciseProgression, ExerciseSession, ExerciseTrend, ExerciseRecommendationAction, ExercisePrescription } from "@/app/types";
+import type { ExerciseProgression, ExerciseSession, ExerciseTrend, ExercisePrescription } from "@/app/types";
 import { calculateEpley1RM } from "@/lib/analysis/exerciseMetrics";
 import type { AcceptPrescriptionParams } from "@/app/hooks/usePrescriptions";
 import SparkLine from "./SparkLine";
-
-const ACTION_LABEL: Partial<Record<ExerciseRecommendationAction, string>> = {
-  increase_load: "Add weight",
-  increase_reps: "Build reps",
-  hold:          "Hold load",
-  reduce_load:   "Reduce load",
-  deload:        "Deload",
-};
+import { ACTION_LABEL } from "@/app/lib/coachLabels";
 
 const TREND_CONFIG: Record<ExerciseTrend, { label: string; color: string; bg: string; arrow: string; spark: string }> = {
   up:    { label: "Progressing",     color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", arrow: "↑", spark: "#10b981" },

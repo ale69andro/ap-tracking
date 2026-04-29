@@ -3,9 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { DayType, EnergyLevel, DailyCheckIn } from "@/app/types";
-
-// Re-export so existing callers using the old import path still work
-export type { DayType, EnergyLevel };
+import { todayStr } from "@/app/lib/dateUtils";
 
 export function useDailyCheckIn(userId: string | null) {
   const [todayCheckIn, setTodayCheckIn] = useState<DailyCheckIn | null>(null);
@@ -14,7 +12,7 @@ export function useDailyCheckIn(userId: string | null) {
   useEffect(() => {
     if (!userId) return;
     const supabase = createClient();
-    const today    = new Date().toISOString().split("T")[0];
+    const today    = todayStr();
 
     supabase
       .from("daily_checkins")
@@ -36,7 +34,7 @@ export function useDailyCheckIn(userId: string | null) {
     async (dayType: DayType, energyLevel?: EnergyLevel) => {
       if (!userId) return;
       const supabase = createClient();
-      const today    = new Date().toISOString().split("T")[0];
+      const today    = todayStr();
 
       await supabase.from("daily_checkins").upsert(
         {

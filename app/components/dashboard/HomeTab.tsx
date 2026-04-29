@@ -4,7 +4,7 @@ import { ChevronRight, Plus as LucidePlus } from "lucide-react";
 import LevelBadge from "../LevelBadge";
 import ProgressionCard from "../ProgressionCard";
 import TrainingDayCard from "../TrainingDayCard";
-import { getSessionDate } from "@/app/hooks/useWorkout";
+import { getSessionDate } from "@/app/lib/dateUtils";
 import { getEffectiveSets } from "@/app/lib/workout";
 import type { AcceptPrescriptionParams } from "@/app/hooks/usePrescriptions";
 import type {

@@ -22,6 +22,7 @@ import type {
   AdaptiveVolumeConfidence,
 } from "@/app/types";
 import { MUSCLE_TO_MAIN, toMainGroup } from "./getWeeklyVolumeByMuscleGroup";
+import { getMondayKey, getCurrentMondayKey } from "./weekHelpers";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -44,37 +45,6 @@ const MIN_SIGNAL_DELTA = 0.003; // 0.3%
  * A 5% widen means a range of [8000, 12000] becomes [7600, 12600].
  */
 const RANGE_WIDEN_FACTOR = 0.05;
-
-// ─── Date Helpers ─────────────────────────────────────────────────────────────
-
-/**
- * Returns the Monday of the week containing the given date string ("YYYY-MM-DD").
- * Parses as local date to avoid UTC midnight shift.
- */
-function getMondayKey(dateStr: string): string {
-  const [y, mo, d] = dateStr.split("-").map(Number);
-  const date = new Date(y, mo - 1, d);
-  const dayOfWeek = date.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  date.setDate(date.getDate() - daysSinceMonday);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-/** Returns the Monday key for the current week. */
-function getCurrentMondayKey(): string {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - daysSinceMonday);
-  const year = monday.getFullYear();
-  const month = String(monday.getMonth() + 1).padStart(2, "0");
-  const day = String(monday.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 /**
  * Returns true if we're early enough in the week (Mon or Tue) that a low or

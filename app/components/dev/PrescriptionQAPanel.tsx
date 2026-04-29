@@ -55,7 +55,7 @@ export default function PrescriptionQAPanel({ userId, prescriptionApi, activeWor
   const [targetRepsMax, setTargetRepsMax] = useState<string>("12");
   const [targetSets, setTargetSets] = useState<string>("");
   const [action, setAction] = useState<ExerciseRecommendationAction>("increase_load");
-  const [confidence, setConfidence] = useState<string>("medium");
+  const [confidence, setConfidence] = useState<"low" | "medium" | "high">("medium");
   const [reason, setReason] = useState<string>("");
 
   // Section C — save/consume log
@@ -375,7 +375,7 @@ export default function PrescriptionQAPanel({ userId, prescriptionApi, activeWor
               <label className="text-green-600 w-32 shrink-0">confidence</label>
               <select
                 value={confidence}
-                onChange={(e) => setConfidence(e.target.value)}
+                onChange={(e) => setConfidence(e.target.value as "low" | "medium" | "high")}
                 className="bg-black border border-green-800 text-green-300 px-2 py-1 focus:outline-none focus:border-green-500"
               >
                 <option value="low">low</option>

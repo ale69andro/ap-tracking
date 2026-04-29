@@ -1,7 +1,7 @@
 "use client";
 
 import type { WorkoutSession } from "@/app/types";
-import { getSessionDate } from "@/app/hooks/useWorkout";
+import { getSessionDate } from "@/app/lib/dateUtils";
 import { computeWorkoutHighlight, computeStrengthDelta, getEffectiveSets, type PRRecord } from "@/app/lib/workout";
 
 type Props = {

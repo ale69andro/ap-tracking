@@ -1,19 +1,11 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { HTMLAttributes } from "react";
-import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression, WorkoutSuggestion } from "@/app/types";
+import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression, WorkoutSuggestion, ExercisePrescription } from "@/app/types";
 import ConfirmModal from "./ConfirmModal";
 import SetRow from "./SetRow";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
-import type { ExerciseRecommendationAction } from "@/app/types";
-
-const ACTION_LABEL: Partial<Record<ExerciseRecommendationAction, string>> = {
-  increase_load: "Add weight",
-  increase_reps: "Build reps",
-  hold:          "Hold load",
-  reduce_load:   "Reduce load",
-  deload:        "Deload",
-};
+import { ACTION_LABEL } from "@/app/lib/coachLabels";
 import { GripVertical, Trash2, ChevronUp, ChevronDown, Plus, Maximize2 } from "lucide-react";
 
 // ─── ExerciseCardBody ─────────────────────────────────────────────────────────
@@ -38,6 +30,8 @@ export type ExerciseCardBodyProps = {
   /** When true (focused overlay), the inline RestTimer inside SetRow is suppressed.
    *  The overlay renders its own sticky bottom timer instead. */
   suppressInlineTimer?: boolean;
+  /** Active unconsumed prescription for this exercise — used to mark coach-influenced sets. */
+  activePrescription?: ExercisePrescription;
 };
 
 export function ExerciseCardBody({
@@ -55,9 +49,28 @@ export function ExerciseCardBody({
   onExtendTimer,
   onUpdateExerciseRest,
   suppressInlineTimer = false,
+  activePrescription,
 }: ExerciseCardBodyProps) {
   const [showRest, setShowRest] = useState(false);
   const timerForRow = suppressInlineTimer ? null : activeTimer;
+
+  // Per-set coach influence: true only when a prescription is active AND the
+  // set's values deviate from the last-session baseline (what they'd have been
+  // without the prescription). Falls back to "prescription present" when no
+  // session history exists to compare against.
+  const lastSession = progression?.recentSessions?.at(-1) ?? null;
+  const isSetCoachInfluenced = (set: ExerciseSet): boolean => {
+    if (set.type === "Warm-up" || !activePrescription) return false;
+    if (lastSession && lastSession.topWeight > 0 && lastSession.topReps > 0) {
+      const w = parseFloat(set.weight);
+      const r = parseFloat(set.reps);
+      const weightDiffers = !isNaN(w) && Math.abs(w - lastSession.topWeight) > 0.001;
+      const repsDiffer    = !isNaN(r) && Math.abs(r - lastSession.topReps)   > 0.001;
+      return weightDiffers || repsDiffer;
+    }
+    return true; // no baseline — prescription present, assume influenced
+  };
+  const anyCoachInfluenced = exercise.sets.some(isSetCoachInfluenced);
 
   return (
     <>
@@ -107,6 +120,15 @@ export function ExerciseCardBody({
         );
       })()}
 
+      {/* Coach prescription hint — shown once per exercise when any set is coach-influenced */}
+      {anyCoachInfluenced && (
+        <div className="px-4 py-1.5 border-b border-zinc-800/40">
+          <p className="text-[10px] text-amber-600/80 font-medium tracking-wide">
+            ⚡ Load adjusted based on your progression
+          </p>
+        </div>
+      )}
+
       {/* Sets */}
       <div className="px-3 pt-3 pb-1">
         {/* Column labels */}
@@ -130,6 +152,7 @@ export function ExerciseCardBody({
                   index={displayIndex}
                   isActive={idx === activeIdx}
                   activeTimer={timerForRow}
+                  isCoachInfluenced={isSetCoachInfluenced(set)}
                   onUpdate={(field, value) => onUpdateSet(set.id, field, value)}
                   onComplete={() => onCompleteSet(set.id)}
                   onUncomplete={() => onUncompleteSet(set.id)}
@@ -234,6 +257,7 @@ export default function ExerciseCard({
   onOpenHistory,
   onOpenFocusMode,
   dragHandleProps,
+  activePrescription,
 }: Props) {
   const [deleteExerciseOpen, setDeleteExerciseOpen] = useState(false);
 
@@ -301,6 +325,7 @@ export default function ExerciseCard({
         activeTimer={activeTimer}
         progression={progression}
         suggestion={suggestion}
+        activePrescription={activePrescription}
         onDeleteSet={onDeleteSet}
         onAddSet={onAddSet}
         onUpdateSet={onUpdateSet}

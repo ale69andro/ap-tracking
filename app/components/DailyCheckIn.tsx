@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { DayType, EnergyLevel } from "@/app/hooks/useDailyCheckIn";
+import type { DayType, EnergyLevel } from "@/app/types";
 import { XP_VALUES } from "@/lib/xp/xpConfig";
 import { getAvatarStage } from "@/lib/xp/xpHelpers";
 

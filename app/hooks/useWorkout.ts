@@ -45,8 +45,6 @@ export const makeExercise = (
   workingRestSeconds: 90,
 });
 
-export { getSessionDate } from "@/app/lib/dateUtils";
-
 // ─── Migration ────────────────────────────────────────────────────────────────
 
 /**
@@ -466,17 +464,6 @@ export function useWorkout(
       prev ? { ...prev, exercises: prev.exercises.filter((e) => e.id !== exId) } : prev
     );
 
-  const moveExercise = (exId: string, direction: "up" | "down") =>
-    setActiveWorkout((prev) => {
-      if (!prev) return prev;
-      const idx = prev.exercises.findIndex((e) => e.id === exId);
-      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (swapIdx < 0 || swapIdx >= prev.exercises.length) return prev;
-      const exercises = [...prev.exercises];
-      [exercises[idx], exercises[swapIdx]] = [exercises[swapIdx], exercises[idx]];
-      return { ...prev, exercises };
-    });
-
   const reorderExercises = (fromIndex: number, toIndex: number) =>
     setActiveWorkout((prev) => {
       if (!prev) return prev;
@@ -715,7 +702,6 @@ export function useWorkout(
     buildStructuralExercises,
     addExercise,
     deleteExercise,
-    moveExercise,
     reorderExercises,
     addSet,
     deleteSet,

@@ -9,6 +9,7 @@ import {
   getXpNeededForNextLevel,
 } from "@/lib/xp/xpHelpers";
 import type { XpEventType } from "@/app/types";
+import { todayStr, yesterdayStr } from "@/app/lib/dateUtils";
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 
@@ -28,18 +29,6 @@ type XpEventRow = {
   event_date: string;
   created_at: string;
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function todayStr(): string {
-  return new Date().toISOString().split("T")[0];
-}
-
-function yesterdayStr(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().split("T")[0];
-}
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 

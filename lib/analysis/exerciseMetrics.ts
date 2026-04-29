@@ -1,6 +1,5 @@
-import type { ExerciseSet, WorkoutSession, ExerciseSession } from "@/app/types";
+import type { ExerciseSet } from "@/app/types";
 import { calculate1RM } from "@/lib/analysis/calculate1RM";
-import { getSessionDate } from "@/app/lib/dateUtils";
 
 /**
  * Returns only completed working sets (excludes warm-ups, incomplete sets,
@@ -50,46 +49,4 @@ export function calculateSessionVolume(sets: ExerciseSet[]): number {
  */
 export function calculateEpley1RM(weight: number, reps: number): number {
   return calculate1RM(weight, reps);
-}
-
-/**
- * Extracts chronological ExerciseSessions for one exercise from the full
- * workout history. Only processes completed sessions. History is expected
- * newest-first (standard app storage order).
- */
-export function getExerciseSessionsFromHistory(
-  workouts: WorkoutSession[],
-  exerciseName: string,
-): ExerciseSession[] {
-  const sessions: ExerciseSession[] = [];
-
-  // Iterate oldest-first for chronological output
-  [...workouts].reverse().forEach((workout) => {
-    if (workout.status !== "completed") return;
-    const exercise = workout.exercises.find(
-      (e) => e.exerciseName.toLowerCase() === exerciseName.toLowerCase(),
-    );
-    if (!exercise) return;
-
-    const workingSets = getRelevantWorkingSets(exercise.sets);
-    if (workingSets.length === 0) return;
-
-    const topSet = getTopSet(workingSets);
-    if (!topSet) return;
-
-    const totalVolume = calculateSessionVolume(workingSets);
-    const score = calculateEpley1RM(topSet.weight, topSet.reps);
-    const date = getSessionDate(workout);
-
-    sessions.push({
-      date,
-      topWeight: topSet.weight,
-      topReps: topSet.reps,
-      totalVolume,
-      score,
-      setCount: workingSets.length,
-    });
-  });
-
-  return sessions;
 }

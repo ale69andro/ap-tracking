@@ -44,12 +44,12 @@ import CoachTestPanel from "../components/CoachTestPanel";
 import PrescriptionQAPanel from "../components/dev/PrescriptionQAPanel";
 import PRToast, { type PRType } from "../components/PRToast";
 import { PRESET_TEMPLATES } from "../constants/presetTemplates";
-import type { Equipment, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate, XpEventType, WorkoutDisplayMode } from "../types";
+import type { Equipment, ExercisePrescription, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate, XpEventType, WorkoutDisplayMode } from "../types";
 import { calculate1RM } from "@/lib/analysis/calculate1RM";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 import { useEffect } from "react";
 import { useDailyCheckIn } from "../hooks/useDailyCheckIn";
-import type { DayType, EnergyLevel } from "../hooks/useDailyCheckIn";
+import type { DayType, EnergyLevel } from "../types";
 import { usePrescriptions } from "../hooks/usePrescriptions";
 import { Plus as LucidePlus } from "lucide-react";
 import WorkoutMiniBar from "../components/WorkoutMiniBar";
@@ -95,6 +95,7 @@ type SortableExerciseCardProps = {
   exercise: SessionExercise;
   activeTimer: ActiveTimer | null;
   progression?: ExerciseProgression;
+  activePrescription?: ExercisePrescription;
   onDelete: () => void;
   onDeleteSet: (setId: string) => void;
   onAddSet: () => void;
@@ -509,7 +510,6 @@ export default function Home() {
   };
 
   const handleCreateCustomExercise = async (name: string, muscleGroups: string[], equipment?: Equipment) => {
-    console.log("🔥 HANDLE CREATE CUSTOM CALLED");
     // Throws on DB error — AddExerciseModal catches and shows the error to the user.
     await createUserExercise(name, muscleGroups, equipment);
     addExercise(name, muscleGroups);
@@ -791,6 +791,7 @@ export default function Home() {
             canGoPrev={focusedCanGoPrev}
             activeTimer={activeTimer}
             progression={focusedProg}
+            activePrescription={getPrescription(focusedExercise.exerciseName)}
             suggestion={getExerciseSuggestion(focusedExercise) ?? undefined}
             onDeleteSet={(setId) => deleteSet(focusedExercise.id, setId)}
             onAddSet={() => addSet(focusedExercise.id)}
@@ -998,6 +999,7 @@ export default function Home() {
                         exercise={exercise}
                         activeTimer={activeTimer}
                         progression={prog}
+                        activePrescription={getPrescription(exercise.exerciseName)}
                         onDelete={() => deleteExercise(exercise.id)}
                         onDeleteSet={(setId) => deleteSet(exercise.id, setId)}
                         onAddSet={() => addSet(exercise.id)}

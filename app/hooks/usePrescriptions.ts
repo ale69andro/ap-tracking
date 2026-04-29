@@ -33,7 +33,7 @@ function rowToPrescription(row: PrescriptionRow): ExercisePrescription {
     target_reps_max: row.target_reps_max,
     target_sets:     row.target_sets,
     action:          row.action as ExerciseRecommendationAction,
-    confidence:      row.confidence,
+    confidence:      row.confidence as "low" | "medium" | "high",
     reason:          row.reason,
     accepted_at:     row.accepted_at,
     consumed_at:     row.consumed_at,
@@ -50,7 +50,7 @@ export type AcceptPrescriptionParams = {
   target_reps_max: number;
   target_sets: number | null;
   action: ExerciseRecommendationAction;
-  confidence: string;
+  confidence: "low" | "medium" | "high";
   reason?: string;
 };
 
