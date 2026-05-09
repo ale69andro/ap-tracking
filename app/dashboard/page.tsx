@@ -929,10 +929,9 @@ export default function Home() {
             onSkipDay={(trainingPlan?.days.length ?? 0) > 1 ? () => setShowSkipConfirm(true) : undefined}
             progressions={effectiveProgressions}
             getPrescription={getPrescription}
-            acceptPrescription={acceptPrescription}
-            onSelectExercise={setSelectedExercise}
             history={history}
-            onSelectWorkout={setSelectedWorkout}
+            streak={currentStreak}
+            onShowProgress={() => setTab("progress")}
           />
 
         )}

@@ -82,6 +82,7 @@ export function useProfile(userId: string | null) {
   const saveProfile = async (data: UserProfile): Promise<void> => {
     if (!userId) return;
     const supabase = createClient();
+
     const { error } = await supabase.from("user_profiles").upsert(
       {
         id:                     userId,
@@ -92,25 +93,16 @@ export function useProfile(userId: string | null) {
         goal:                   data.goal,
         training_days_per_week: data.trainingDaysPerWeek,
         sleep_quality:          data.sleepQuality,
-        keep_screen_on:          data.keepScreenOn  ?? true,
-        rest_timer_sound:        data.restTimerSound ?? false,
-        stress_level:            data.stressLevel            ?? null,
-        intensity_style:         data.intensityStyle         ?? null,
-        proximity_to_failure:    data.proximityToFailure     ?? null,
-        equipment_access:        data.equipmentAccess        ?? null,
-        priority_muscle_groups:  data.priorityMuscleGroups   ?? null,
-        updated_at:              new Date().toISOString(),
+        keep_screen_on:         data.keepScreenOn ?? true,
       },
       { onConflict: "id" },
     );
     if (error) {
-      console.error("Failed to save profile:", {
-        message: error?.message,
-        details: error?.details,
-        hint:    error?.hint,
-        code:    error?.code,
-      });
-      throw error;
+      throw new Error(
+        `Profile save failed [${error.code}]: ${error.message}` +
+        (error.hint    ? ` | hint: ${error.hint}`       : "") +
+        (error.details ? ` | details: ${error.details}` : ""),
+      );
     }
     setProfile(data);
   };

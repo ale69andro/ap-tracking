@@ -74,6 +74,7 @@ export default function ProfileSetupScreen({ onSave }: Props) {
     sleepQuality:        "medium",
   });
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: val }));
@@ -81,9 +82,13 @@ export default function ProfileSetupScreen({ onSave }: Props) {
   const handleSubmit = async () => {
     if (!isValid(form) || saving) return;
     setSaving(true);
+    setSaveError(null);
     try {
       await onSave(toProfile(form));
-    } catch {
+    } catch (err) {
+      console.error("ProfileSetupScreen: save failed", err);
+      setSaveError("Couldn't save your profile. Please try again.");
+    } finally {
       setSaving(false);
     }
   };
@@ -200,6 +205,11 @@ export default function ProfileSetupScreen({ onSave }: Props) {
       </div>
 
       <div className="mt-10 pb-2">
+        {saveError && (
+          <p className="text-red-400 text-sm font-semibold text-center mb-3">
+            {saveError}
+          </p>
+        )}
         <button
           onClick={handleSubmit}
           disabled={!isValid(form) || saving}
