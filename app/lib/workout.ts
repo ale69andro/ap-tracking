@@ -1,7 +1,16 @@
-import type { ExerciseSet, ExercisePrescription, WorkoutSession, WorkoutHighlight } from "@/app/types";
+import type {
+  ExerciseSet,
+  ExercisePrescription,
+  SessionExercise,
+  SetType,
+  TemplateExercise,
+  WorkoutSession,
+  WorkoutHighlight,
+} from "@/app/types";
 
 export type PRRecord = { exerciseName: string; type: "e1rm" | "weight" };
 import { calculate1RM } from "@/lib/analysis/calculate1RM";
+import { getBaseExerciseName, getExerciseVariant } from "@/app/lib/exerciseVariant";
 
 /** Returns only working sets — excludes Warm-up type. Use for non-metric purposes (e.g. weight pre-fill). */
 export function getWorkingSets(sets: ExerciseSet[]): ExerciseSet[] {
@@ -61,6 +70,95 @@ export function applyPrescriptionToSets(
   }
 
   return result;
+}
+
+/**
+ * Re-fills the open sets of an exercise after its variant was switched.
+ * Pure function — no side effects.
+ *
+ * Rules:
+ * - Completed sets are never touched.
+ * - Open sets take weight and reps from `previous` — the most recent session
+ *   exercise of the NEW variant — matched by set type and position within that
+ *   type. Past the end of that type, the last set of the type is used.
+ * - Without a matching previous set, weight and reps are cleared, so no value
+ *   of the other variant survives the switch.
+ * - The prescription (of the new variant) then overrides weight and reps on
+ *   open working sets. target_sets is ignored.
+ * - Set count, set types, rest values, and ordering are preserved.
+ */
+export function refillSetsForVariant(
+  sets: ExerciseSet[],
+  previous: Pick<SessionExercise, "sets"> | undefined,
+  prescription?: ExercisePrescription,
+): ExerciseSet[] {
+  const previousByType: Partial<Record<SetType, ExerciseSet[]>> = {};
+  for (const s of previous?.sets ?? []) {
+    (previousByType[s.type] ??= []).push(s);
+  }
+
+  const typeCounter: Partial<Record<SetType, number>> = {};
+  const refilled = sets.map((s) => {
+    const nth = typeCounter[s.type] ?? 0;
+    typeCounter[s.type] = nth + 1;
+    if (s.completed) return s;
+
+    const sameType = previousByType[s.type] ?? [];
+    const source   = sameType[nth] ?? sameType[sameType.length - 1];
+    return { ...s, weight: source?.weight ?? "", reps: source?.reps ?? "" };
+  });
+
+  if (!prescription) return refilled;
+
+  const prescribed = applyPrescriptionToSets(
+    refilled.filter((s) => !s.completed),
+    { ...prescription, target_sets: null },
+  );
+  const prescribedById = new Map(prescribed.map((s) => [s.id, s]));
+  return refilled.map((s) => prescribedById.get(s.id) ?? s);
+}
+
+/**
+ * Carries variant switches made during a session over to its template, so the
+ * exercise starts in the same variant next time. Pure function.
+ *
+ * Each template exercise is paired with one session exercise: first by exact
+ * name, then — among what is left on both sides — by base name. A template
+ * exercise paired by base name takes over the session exercise's name and
+ * loses its startWeight when the variant flipped (it belongs to the other
+ * variant). Exercises are never added, removed, or reordered.
+ *
+ * Returns null when the template needs no change.
+ */
+export function mergeSessionVariantsIntoTemplate(
+  templateExercises: TemplateExercise[],
+  sessionExercises: Pick<SessionExercise, "exerciseName">[],
+): TemplateExercise[] | null {
+  const unclaimed = sessionExercises.map((ex) => ex.exerciseName);
+  const claim = (matches: (sessionName: string) => boolean): string | undefined => {
+    const index = unclaimed.findIndex(matches);
+    return index === -1 ? undefined : unclaimed.splice(index, 1)[0];
+  };
+
+  const exactlyMatched = templateExercises.map(
+    (tpl) => claim((sessionName) => sessionName === tpl.name) !== undefined,
+  );
+
+  let changed = false;
+  const result = templateExercises.map((tpl, i) => {
+    if (exactlyMatched[i]) return tpl;
+
+    const base        = getBaseExerciseName(tpl.name);
+    const sessionName = claim((name) => getBaseExerciseName(name) === base);
+    if (sessionName === undefined) return tpl;
+
+    changed = true;
+    const next: TemplateExercise = { ...tpl, name: sessionName };
+    if (getExerciseVariant(sessionName) !== getExerciseVariant(tpl.name)) delete next.startWeight;
+    return next;
+  });
+
+  return changed ? result : null;
 }
 
 /** Returns sets that count toward metrics: completed and not a warm-up. Single source of truth for all calculations. */
@@ -201,6 +299,8 @@ export function computeStrengthDelta(
  * - Completion flags or timestamps.
  * - Rest seconds.
  * - Transient UI state (IDs, notes edits).
+ * - A variant switch (bilateral ↔ unilateral) — carried over to the template
+ *   separately, see mergeSessionVariantsIntoTemplate.
  *
  * Returns false when the session was not started from a template (no snapshot).
  */
@@ -213,7 +313,7 @@ export function hasStructureChanged(session: WorkoutSession): boolean {
   // Exercise count or order/name mismatch.
   if (snapshot.length !== current.length) return true;
   for (let i = 0; i < snapshot.length; i++) {
-    if (snapshot[i].exerciseName !== current[i].exerciseName) return true;
+    if (getBaseExerciseName(snapshot[i].exerciseName) !== getBaseExerciseName(current[i].exerciseName)) return true;
   }
 
   // Per-exercise: set count and set type sequence.

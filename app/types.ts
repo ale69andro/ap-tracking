@@ -1,5 +1,8 @@
 export type SetType = "Normal" | "Warm-up" | "Drop Set";
 
+/** Bilateral vs. per-side execution of an exercise. Encoded in the exercise name — see app/lib/exerciseVariant.ts. */
+export type ExerciseVariant = "bilateral" | "unilateral";
+
 /** Controls whether the active workout is shown full-screen or as a compact mini-bar. */
 export type WorkoutDisplayMode = "full" | "minimized";
 

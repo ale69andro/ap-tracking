@@ -9,6 +9,7 @@ import {
   getBestBlockSet,
 } from "@/lib/analysis/computeBlockProgress";
 import { blockEntry, exercise, session, set } from "@/lib/analysis/__fixtures__/blockFixtures";
+import { withExerciseVariant } from "@/app/lib/exerciseVariant";
 
 type BlockInput = Pick<TrainingBlock, "startDate" | "lengthWeeks" | "endedAt">;
 
@@ -709,5 +710,107 @@ describe("computeBlockProgress: group labels", () => {
   it("treats a whitespace-only session name as empty", () => {
     const s = session({ id: "c1", templateId: "t3", date: "2026-01-07", name: "   ", exercises: [exercise("Row", [set("60", "5")])] });
     expect(computeBlockProgress(block("2026-01-05"), [s], {}).groups[0].label).toBe(DELETED_TEMPLATE_LABEL);
+  });
+});
+
+describe("computeBlockProgress: unilateral variants", () => {
+  const BENCH_UNI = withExerciseVariant("Bench", "unilateral");
+
+  it("keeps bilateral and unilateral of the same exercise as two separate series", () => {
+    const sessions = [
+      session({
+        id: "s1",
+        templateId: "t1",
+        date: "2026-01-05",
+        exercises: [exercise("Bench", [set("80", "5")]), exercise(BENCH_UNI, [set("30", "8")])],
+      }),
+      session({
+        id: "s2",
+        templateId: "t1",
+        date: "2026-01-12",
+        exercises: [exercise("Bench", [set("85", "5")]), exercise(BENCH_UNI, [set("36", "8")])],
+      }),
+    ];
+    const result = computeBlockProgress(block("2026-01-05"), sessions, {});
+    const rows = result.groups[0].rows;
+
+    expect(rows.map((r) => r.key).sort()).toEqual(["t1::Bench", "t1::Bench (Uni)"]);
+
+    const bilateral = rows.find((r) => r.exerciseName === "Bench");
+    const unilateral = rows.find((r) => r.exerciseName === BENCH_UNI);
+
+    // Bilateral: 80x5 -> 93.33, 85x5 -> 99.17, +6.25 %
+    expect(bilateral?.entries).toHaveLength(2);
+    expect(bilateral?.sessionsInBlock).toBe(2);
+    expect(bilateral?.entries[0].e1rm).toBeCloseTo(epley(80, 5), 6);
+    expect(bilateral?.entries[1].bestSet).toEqual({ weight: 85, reps: 5 });
+    expect(bilateral?.entries[1].deltaVsStartPct).toBeCloseTo(6.25, 6);
+
+    // Unilateral: its own baseline. 30x8 -> 38, 36x8 -> 45.6, +7.6 kg, +20 %
+    expect(unilateral?.entries).toHaveLength(2);
+    expect(unilateral?.sessionsInBlock).toBe(2);
+    expect(unilateral?.entries[0].e1rm).toBeCloseTo(epley(30, 8), 6);
+    expect(unilateral?.entries[0].deltaVsStartKg).toBe(0);
+    expect(unilateral?.entries[1].bestSet).toEqual({ weight: 36, reps: 8 });
+    expect(unilateral?.entries[1].deltaVsStartKg).toBeCloseTo(7.6, 6);
+    expect(unilateral?.entries[1].deltaVsStartPct).toBeCloseTo(20, 6);
+
+    expect(result.ranking.map((r) => r.key).sort()).toEqual(["t1::Bench", "t1::Bench (Uni)"]);
+  });
+
+  it("merges the same variant listed twice in a session, but not the two variants", () => {
+    const s = session({
+      id: "s1",
+      templateId: "t1",
+      date: "2026-01-05",
+      exercises: [
+        exercise("Bench", [set("80", "5")]),
+        exercise(BENCH_UNI, [set("30", "8")]),
+        exercise("Bench", [set("90", "5")]),
+        exercise(BENCH_UNI, [set("34", "8")]),
+      ],
+    });
+    const rows = computeBlockProgress(block("2026-01-05"), [s], {}).groups[0].rows;
+    expect(rows).toHaveLength(2);
+
+    const bilateral = rows.find((r) => r.exerciseName === "Bench");
+    const unilateral = rows.find((r) => r.exerciseName === BENCH_UNI);
+
+    expect(bilateral?.entries).toHaveLength(1);
+    expect(bilateral?.sessionsInBlock).toBe(1);
+    expect(bilateral?.entries[0].bestSet).toEqual({ weight: 90, reps: 5 });
+
+    expect(unilateral?.entries).toHaveLength(1);
+    expect(unilateral?.sessionsInBlock).toBe(1);
+    expect(unilateral?.entries[0].bestSet).toEqual({ weight: 34, reps: 8 });
+  });
+
+  it("starts a new series when an exercise is switched to unilateral mid-block", () => {
+    const sessions = [
+      benchSession("s1", "2026-01-05", "80"),
+      benchSession("s2", "2026-01-12", "85"),
+      session({ id: "s3", templateId: "t1", date: "2026-01-19", exercises: [exercise(BENCH_UNI, [set("30", "8")])] }),
+      session({ id: "s4", templateId: "t1", date: "2026-01-26", exercises: [exercise(BENCH_UNI, [set("33", "8")])] }),
+    ];
+    const rows = computeBlockProgress(block("2026-01-05"), sessions, {}).groups[0].rows;
+    expect(rows).toHaveLength(2);
+
+    const bilateral = rows.find((r) => r.exerciseName === "Bench");
+    const unilateral = rows.find((r) => r.exerciseName === BENCH_UNI);
+
+    // The bilateral series stops growing.
+    expect(bilateral?.entries).toHaveLength(2);
+    expect(bilateral?.entries[1].dateKey).toBe("2026-01-12");
+
+    // The unilateral series starts with its own baseline, not with a drop from 85 kg.
+    expect(unilateral?.entries).toHaveLength(2);
+    expect(unilateral?.entries[0].weekIndex).toBe(3);
+    expect(unilateral?.entries[0].deltaVsStartKg).toBe(0);
+    expect(unilateral?.entries[0].deltaVsStartPct).toBe(0);
+    expect(unilateral?.entries[0].deltaVsPrevKg).toBeNull();
+    // 33x8 -> 41.8, 30x8 -> 38: +3.8 kg, +10 %
+    expect(unilateral?.entries[1].weekIndex).toBe(4);
+    expect(unilateral?.entries[1].deltaVsStartKg).toBeCloseTo(3.8, 6);
+    expect(unilateral?.entries[1].deltaVsStartPct).toBeCloseTo(10, 6);
   });
 });

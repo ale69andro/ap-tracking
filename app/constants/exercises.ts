@@ -7,6 +7,7 @@ import type {
   LibraryExercise,
   MovementType,
 } from "@/app/types";
+import { getBaseExerciseName } from "@/app/lib/exerciseVariant";
 
 // ─── Builder ──────────────────────────────────────────────────────────────────
 //
@@ -195,9 +196,12 @@ export function isBuiltIn(ex: LibraryExercise): ex is BuiltInExercise {
   return "primaryMuscleGroups" in ex;
 }
 
-/** Returns the built-in entry for a given exercise name (case-insensitive), or undefined. */
+/**
+ * Returns the built-in entry for a given exercise name (case-insensitive), or undefined.
+ * The variant suffix is ignored: a unilateral exercise shares the catalog entry of its base exercise.
+ */
 export function findBuiltIn(name: string): BuiltInExercise | undefined {
-  const lower = name.toLowerCase();
+  const lower = getBaseExerciseName(name).toLowerCase();
   return LIBRARY.find((e) => e.name.toLowerCase() === lower);
 }
 
