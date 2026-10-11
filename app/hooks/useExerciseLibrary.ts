@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { LIBRARY } from "@/app/constants/exercises";
+import { isUnilateralName } from "@/app/lib/exerciseVariant";
 import type { LibraryExercise, Equipment } from "@/app/types";
 
 type UserExerciseRow = {
@@ -57,6 +58,10 @@ export function useExerciseLibrary(userId: string | null) {
     if (!userId) throw new Error("Not authenticated");
     const normalizedName = name.trim().replace(/\s+/g, " ");
     const normalizedLower = normalizedName.toLowerCase();
+
+    // The suffix marks the unilateral variant of an exercise — it is set by the
+    // variant toggle in the workout, never typed as part of a library name.
+    if (isUnilateralName(normalizedName)) throw new Error("RESERVED_EXERCISE_NAME");
 
     const isDuplicate =
       LIBRARY.some((e) => e.name.toLowerCase() === normalizedLower) ||

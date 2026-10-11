@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { HTMLAttributes } from "react";
-import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression, WorkoutSuggestion, ExercisePrescription } from "@/app/types";
+import type { SessionExercise, ExerciseSet, ActiveTimer, ExerciseProgression, ExerciseVariant, WorkoutSuggestion, ExercisePrescription } from "@/app/types";
 import ConfirmModal from "./ConfirmModal";
+import ExerciseVariantToggle from "./ExerciseVariantToggle";
 import SetRow from "./SetRow";
 import { getExerciseTargets } from "@/lib/analysis/getExerciseTargets";
 import { ACTION_LABEL } from "@/app/lib/coachLabels";
+import { getBaseExerciseName } from "@/app/lib/exerciseVariant";
+import { getCompletedSets } from "@/app/lib/workout";
 import { GripVertical, Trash2, ChevronUp, ChevronDown, Plus, Maximize2 } from "lucide-react";
 
 // ─── ExerciseCardBody ─────────────────────────────────────────────────────────
@@ -236,6 +239,8 @@ type Props = ExerciseCardBodyProps & {
   onDelete: () => void;
   onOpenHistory?: () => void;
   onOpenFocusMode?: () => void;
+  /** Switches the exercise between bilateral and unilateral. The toggle is shown only when provided. */
+  onChangeVariant?: (variant: ExerciseVariant) => void;
   dragHandleProps?: HTMLAttributes<HTMLElement>;
 };
 
@@ -256,10 +261,13 @@ export default function ExerciseCard({
   onUpdateExerciseRest,
   onOpenHistory,
   onOpenFocusMode,
+  onChangeVariant,
   dragHandleProps,
   activePrescription,
 }: Props) {
   const [deleteExerciseOpen, setDeleteExerciseOpen] = useState(false);
+  // With the toggle visible, its pill carries the variant — the title shows the plain name.
+  const title = onChangeVariant ? getBaseExerciseName(exercise.exerciseName) : exercise.exerciseName;
 
   return (
     <>
@@ -274,7 +282,7 @@ export default function ExerciseCard({
               className="text-left w-full hover:text-red-500 transition-colors active:opacity-70"
               title="View exercise history"
             >
-              <h3 className="text-sm font-bold text-white tracking-wide truncate">{exercise.exerciseName}</h3>
+              <h3 className="text-sm font-bold text-white tracking-wide leading-snug line-clamp-2">{title}</h3>
               {exercise.muscleGroups.length > 0 && (
                 <p className="hidden sm:block text-[11px] text-zinc-600 mt-0.5 tracking-wide">
                   {exercise.muscleGroups.join(" · ")}
@@ -283,7 +291,7 @@ export default function ExerciseCard({
             </button>
           ) : (
             <>
-              <h3 className="text-sm font-bold text-white tracking-wide truncate">{exercise.exerciseName}</h3>
+              <h3 className="text-sm font-bold text-white tracking-wide leading-snug line-clamp-2">{title}</h3>
               {exercise.muscleGroups.length > 0 && (
                 <p className="hidden sm:block text-[11px] text-zinc-600 mt-0.5 tracking-wide">
                   {exercise.muscleGroups.join(" · ")}
@@ -293,6 +301,13 @@ export default function ExerciseCard({
           )}
         </div>
         <div className="ml-3 shrink-0 flex items-center gap-1">
+          {onChangeVariant && (
+            <ExerciseVariantToggle
+              exerciseName={exercise.exerciseName}
+              hasCompletedSets={getCompletedSets(exercise.sets).length > 0}
+              onChange={onChangeVariant}
+            />
+          )}
           {onOpenFocusMode && (
             <button
               onClick={onOpenFocusMode}

@@ -23,7 +23,9 @@ ExerciseProgression[]
 In-session: getExerciseSuggestion (dashboard/page.tsx), detectBadDayDuringWorkout (useWorkout)
 ```
 
-`useProgression` builds one `ExerciseSession` per workout and exercise (`date, topWeight, topReps, totalVolume, score, setCount`) from completed non-warm-up sets and keeps only the **last 5 sessions** per exercise as `recentSessions`. Everything downstream works on that window.
+`useProgression` (a thin `useMemo` wrapper around the pure `lib/analysis/buildExerciseProgressions.ts`) builds one `ExerciseSession` per workout and exercise (`date, topWeight, topReps, totalVolume, score, setCount`) from completed non-warm-up sets and keeps only the **last 5 sessions** per exercise as `recentSessions`. Everything downstream works on that window.
+
+Grouping is by exact exercise name. A unilateral exercise is stored as `"<Name> (Uni)"` (see `app/lib/exerciseVariant.ts`) and therefore gets its own progression; weights are per side and never converted. Only catalog lookups (`findBuiltIn`: increment, role, default rep range) ignore the suffix.
 
 ---
 
@@ -384,4 +386,4 @@ In-session: getExerciseSuggestion (dashboard/page.tsx), detectBadDayDuringWorkou
 
 7. **Dead and stale code** — `getRelevantWorkingSets`, `calculateSessionVolume`, the unreachable `form_focus` action, the unused `trainingProfile` input of `detectBadDayDuringWorkout`, and comments referring to removed functions.
 
-8. **No tests** — none of the thresholds above are covered; there is no test framework in the project.
+8. **No threshold tests** — Vitest is installed (`npm test`), but none of the thresholds above are covered yet. Tested so far: block calculation, exercise variant helpers, progression grouping.

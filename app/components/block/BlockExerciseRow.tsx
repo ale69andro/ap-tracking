@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import type { BlockExerciseRow as BlockExerciseRowData } from "@/app/types";
 import { deltaColor, formatSet, formatSignedKg, formatSignedPct } from "@/app/lib/blockFormat";
 import BlockEntryList from "./BlockEntryList";
+import ExerciseName from "../ExerciseName";
 
 type Props = { row: BlockExerciseRowData };
 
@@ -28,7 +29,7 @@ export default function BlockExerciseRow({ row }: Props) {
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
-            <p className="text-sm font-bold text-white truncate min-w-0">{row.exerciseName}</p>
+            <ExerciseName name={row.exerciseName} className="text-sm font-bold text-white truncate min-w-0" />
             {start.weekIndex > 1 && (
               <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-zinc-800 text-[10px] font-bold text-zinc-400">
                 neu ab W{start.weekIndex}

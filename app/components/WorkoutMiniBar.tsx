@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { WorkoutSession, ActiveTimer, SessionExercise } from "../types";
+import ExerciseName from "./ExerciseName";
 
 type Props = {
   workout: WorkoutSession;
@@ -51,10 +52,12 @@ export default function WorkoutMiniBar({ workout, activeTimer, onExpand }: Props
           {workout.name}
         </p>
         {currentExercise && (
-          <p className="text-sm font-bold text-white leading-tight mt-0.5 truncate">
-            {isResting ? "Resting · " : timerRemaining !== null ? "Ready · " : ""}
-            {currentExercise.exerciseName}
-          </p>
+          <div className="flex items-center gap-1 min-w-0 mt-0.5 text-sm font-bold text-white leading-tight">
+            {timerRemaining !== null && (
+              <span className="shrink-0">{isResting ? "Resting ·" : "Ready ·"}</span>
+            )}
+            <ExerciseName name={currentExercise.exerciseName} className="truncate" />
+          </div>
         )}
       </div>
 

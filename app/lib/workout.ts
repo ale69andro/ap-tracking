@@ -161,6 +161,37 @@ export function mergeSessionVariantsIntoTemplate(
   return changed ? result : null;
 }
 
+/**
+ * Builds the TemplateExercise[] to write back when the user confirms
+ * "Update Plan". Spreads the original template exercise as base (preserving
+ * targetRepsMin/Max, startWeight, targetReps) then overlays only the fields
+ * that SessionExercise can safely provide. Pure function.
+ *
+ * Matching uses the exercise name (TemplateExercise has no stable id field):
+ * exact name first, then base name, so an exercise whose variant was switched
+ * during the session keeps its template settings. Its startWeight is dropped
+ * in that case — it belongs to the other variant.
+ */
+export function buildStructuralTemplateExercises(
+  sessionExercises: SessionExercise[],
+  originals: TemplateExercise[],
+): TemplateExercise[] {
+  return sessionExercises.map((ex) => {
+    const original =
+      originals.find((o) => o.name === ex.exerciseName) ??
+      originals.find((o) => getBaseExerciseName(o.name) === getBaseExerciseName(ex.exerciseName));
+    const base: Partial<TemplateExercise> = { ...original };
+    if (original && getExerciseVariant(original.name) !== getExerciseVariant(ex.exerciseName)) delete base.startWeight;
+    return {
+      ...base,
+      name:         ex.exerciseName,
+      muscleGroups: ex.muscleGroups,
+      notes:        ex.notes,
+      sets:         ex.sets.length,
+    };
+  });
+}
+
 /** Returns sets that count toward metrics: completed and not a warm-up. Single source of truth for all calculations. */
 export function getEffectiveSets(sets: ExerciseSet[]): ExerciseSet[] {
   return sets.filter((s) => s.completed === true && s.type !== "Warm-up");

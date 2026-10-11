@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { WorkoutTemplate, TemplateExercise } from "@/app/types";
+import type { WorkoutSession, WorkoutTemplate, TemplateExercise } from "@/app/types";
 import { createClient } from "@/lib/supabase/client";
+import { mergeSessionVariantsIntoTemplate } from "@/app/lib/workout";
 
 const LOCAL_KEY = "ap_templates";
 
@@ -134,11 +135,25 @@ export function useTemplates(userId: string | null) {
     );
   };
 
+  /**
+   * Carries variant switches (bilateral ↔ unilateral) made in a finished
+   * session over to its template, so the exercise starts in the same variant
+   * next time. No-op for presets and template-less sessions (no row to
+   * update) and when the template already matches.
+   */
+  const syncTemplateVariants = async (session: WorkoutSession): Promise<void> => {
+    const template = templates.find((t) => t.id === session.templateId);
+    if (!template) return;
+    const exercises = mergeSessionVariantsIntoTemplate(template.exercises, session.exercises);
+    if (exercises) await updateTemplate(template.id, exercises);
+  };
+
   return {
     // Gate on userId so stale state from a previous session is never exposed.
     templates: userId ? templates : [],
     saveTemplate,
     deleteTemplate,
     updateTemplate,
+    syncTemplateVariants,
   };
 }

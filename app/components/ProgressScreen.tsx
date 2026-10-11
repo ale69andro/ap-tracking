@@ -14,6 +14,7 @@ import VolumePreviewCard from "./VolumePreviewCard";
 import VolumeDetailSheet from "./VolumeDetailSheet";
 import { getExerciseRole } from "@/app/constants/exercises";
 import BlockEntryCard from "./block/BlockEntryCard";
+import ExerciseName from "./ExerciseName";
 
 // ─── Resolved exercise card state ─────────────────────────────────────────────
 
@@ -347,7 +348,7 @@ function FocusTodayCard({ p, onTap }: { p: ExerciseProgression; onTap: () => voi
     >
       <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">Focus Today</p>
       <div className="flex items-start justify-between gap-3 mb-2">
-        <p className="text-[15px] font-black text-white leading-snug truncate">{p.name}</p>
+        <ExerciseName name={p.name} className="text-[15px] font-black text-white leading-snug truncate" />
         <span
           className={`shrink-0 text-[11px] font-bold px-3 py-1.5 rounded-full border ${state.bg} ${state.color}`}
           style={{ boxShadow: `0 0 10px ${state.glow}` }}
@@ -393,7 +394,7 @@ function ExerciseCard({
       {/* Row 1: name + badge */}
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0">
-          <p className="text-[15px] font-black text-white leading-snug truncate">{p.name}</p>
+          <ExerciseName name={p.name} className="text-[15px] font-black text-white leading-snug truncate" />
           {p.muscleGroups.length > 0 && (
             <p className="text-[11px] text-zinc-600 mt-0.5 truncate">{p.muscleGroups.join(" · ")}</p>
           )}

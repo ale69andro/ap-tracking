@@ -44,7 +44,7 @@ import CoachTestPanel from "../components/CoachTestPanel";
 import PrescriptionQAPanel from "../components/dev/PrescriptionQAPanel";
 import PRToast, { type PRType } from "../components/PRToast";
 import { PRESET_TEMPLATES } from "../constants/presetTemplates";
-import type { Equipment, ExercisePrescription, ExerciseProgression, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate, XpEventType, WorkoutDisplayMode } from "../types";
+import type { Equipment, ExercisePrescription, ExerciseProgression, ExerciseVariant, SessionExercise, ExerciseSet, ActiveTimer, TemplateExercise, TrainingDay, WorkoutSession, WorkoutTemplate, XpEventType, WorkoutDisplayMode } from "../types";
 import { calculate1RM } from "@/lib/analysis/calculate1RM";
 import { getExerciseTargets, parseMiddleRep } from "@/lib/analysis/getExerciseTargets";
 import { useEffect } from "react";
@@ -109,6 +109,7 @@ type SortableExerciseCardProps = {
   suggestion?: import("../types").WorkoutSuggestion;
   onOpenHistory?: () => void;
   onOpenFocusMode?: () => void;
+  onChangeVariant?: (variant: ExerciseVariant) => void;
 };
 
 function SortableExerciseCard(props: SortableExerciseCardProps) {
@@ -229,6 +230,7 @@ export default function Home() {
     completeSet,
     uncompleteSet,
     updateExerciseRest,
+    setExerciseVariant,
     saveWorkout,
     resetWorkout,
     deleteWorkout,
@@ -458,7 +460,7 @@ export default function Home() {
     if (oldIndex !== -1 && newIndex !== -1) reorderExercises(oldIndex, newIndex);
   };
 
-  const { templates, saveTemplate, deleteTemplate, updateTemplate } = useTemplates(userId);
+  const { templates, saveTemplate, deleteTemplate, updateTemplate, syncTemplateVariants } = useTemplates(userId);
   const { userExercises, createUserExercise } = useExerciseLibrary(userId);
 
   const {
@@ -591,7 +593,7 @@ export default function Home() {
     setSaveError(false);
     try {
       if (pendingExit === "save") {
-        const skipped = await saveWorkout(consumePrescriptions);
+        const skipped = await saveWorkout(consumePrescriptions, syncTemplateVariants);
         setSkippedSetsCount(skipped ?? 0);
       } else resetWorkout();
       setPendingExit(null);
@@ -626,7 +628,8 @@ export default function Home() {
     setUpdatingPlan(true);
     setUpdatePlanError(false);
     try {
-      const skipped = await saveWorkout(consumePrescriptions);
+      // "Keep Plan" keeps the structure — a variant switch is still carried over.
+      const skipped = await saveWorkout(consumePrescriptions, syncTemplateVariants);
       setSkippedSetsCount(skipped ?? 0);
       setShowUpdatePlanModal(false);
     } catch {
@@ -802,6 +805,7 @@ export default function Home() {
             onAdjustTimer={adjustTimer}
             onExtendTimer={extendTimer}
             onUpdateExerciseRest={(field, value) => updateExerciseRest(focusedExercise.id, field, value)}
+            onChangeVariant={(variant) => setExerciseVariant(focusedExercise.id, variant, getActivePrescriptions())}
             onClose={closeFocused}
             onNavigate={goToFocused}
             onViewDetail={focusedProg ? () => setSelectedExercise(focusedProg) : undefined}
@@ -1009,6 +1013,7 @@ export default function Home() {
                         onAdjustTimer={adjustTimer}
                         onExtendTimer={extendTimer}
                         onUpdateExerciseRest={(field, value) => updateExerciseRest(exercise.id, field, value)}
+                        onChangeVariant={(variant) => setExerciseVariant(exercise.id, variant, getActivePrescriptions())}
                         suggestion={getExerciseSuggestion(exercise) ?? undefined}
                         onOpenHistory={prog ? () => setSelectedExercise(prog) : undefined}
                         onOpenFocusMode={() => openFocused(exercise.id)}

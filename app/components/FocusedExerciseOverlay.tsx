@@ -4,7 +4,11 @@ import { useRef, useCallback } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
 import { ExerciseCardBody, type ExerciseCardBodyProps } from "./ExerciseCard";
 import RestTimer from "./RestTimer";
+import ExerciseVariantToggle from "./ExerciseVariantToggle";
 import { getTimerRemaining } from "@/app/hooks/useWorkout";
+import { getBaseExerciseName } from "@/app/lib/exerciseVariant";
+import { getCompletedSets } from "@/app/lib/workout";
+import type { ExerciseVariant } from "@/app/types";
 
 type Props = ExerciseCardBodyProps & {
   focusedIndex: number;
@@ -17,6 +21,8 @@ type Props = ExerciseCardBodyProps & {
   onViewDetail?: () => void;
   /** Name of the exercise that owns the active timer — used for context label when navigated away */
   timerExerciseName?: string;
+  /** Switches the exercise between bilateral and unilateral. The toggle is shown only when provided. */
+  onChangeVariant?: (variant: ExerciseVariant) => void;
 };
 
 export default function FocusedExerciseOverlay({
@@ -30,6 +36,7 @@ export default function FocusedExerciseOverlay({
   onNavigate,
   onViewDetail,
   timerExerciseName,
+  onChangeVariant,
   ...bodyProps
 }: Props) {
   // ── Timer state (derived — never stored) ──────────────────────────────────
@@ -45,6 +52,9 @@ export default function FocusedExerciseOverlay({
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest("button")) return;
+    // React events bubble out of portals: a tap on the variant confirm sheet
+    // is not a swipe on this bar and must not capture the pointer.
+    if (!e.currentTarget.contains(e.target as Node)) return;
     swipeRef.current = { startX: e.clientX };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }, []);
@@ -82,16 +92,17 @@ export default function FocusedExerciseOverlay({
         {/* Back */}
         <button
           onClick={onClose}
+          aria-label="Back to workout"
           className="flex items-center gap-1 text-zinc-400 hover:text-white text-xs font-semibold transition-colors py-2 px-2 -ml-1 rounded-lg hover:bg-zinc-800 shrink-0"
         >
           <ArrowLeft size={15} />
-          <span>Workout</span>
+          <span className="hidden min-[400px]:inline">Workout</span>
         </button>
 
         {/* Title + position */}
         <div className="flex-1 min-w-0 text-center px-1">
           <p className="text-sm font-black text-white truncate leading-tight">
-            {exercise.exerciseName}
+            {onChangeVariant ? getBaseExerciseName(exercise.exerciseName) : exercise.exerciseName}
           </p>
           <p className="text-[10px] text-zinc-600 tabular-nums leading-tight mt-0.5">
             {focusedIndex + 1} / {totalCount}
@@ -100,6 +111,13 @@ export default function FocusedExerciseOverlay({
 
         {/* Controls: detail + prev/next */}
         <div className="flex items-center gap-0.5 shrink-0">
+          {onChangeVariant && (
+            <ExerciseVariantToggle
+              exerciseName={exercise.exerciseName}
+              hasCompletedSets={getCompletedSets(exercise.sets).length > 0}
+              onChange={onChangeVariant}
+            />
+          )}
           {onViewDetail && (
             <button
               onClick={onViewDetail}

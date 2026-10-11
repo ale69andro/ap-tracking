@@ -102,6 +102,8 @@ export default function AddExerciseModal({ userExercises, onAdd, onCreateCustom,
       console.error("createUserExercise failed:", e);
       const msg = e instanceof Error && e.message === "DUPLICATE_EXERCISE"
         ? "An exercise with this name already exists."
+        : e instanceof Error && e.message === "RESERVED_EXERCISE_NAME"
+        ? "Names can't end with \"(Uni)\". Add the exercise, then switch it to unilateral in the workout."
         : "Could not save exercise. Please try again.";
       setSaveError(msg);
       setSaving(false);

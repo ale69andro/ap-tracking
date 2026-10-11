@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { ACTION_LABEL } from "@/app/lib/coachLabels";
 import { getDashboardCoachSignal } from "@/lib/analysis/getDashboardCoachSignal";
 import type { ExercisePrescription, ExerciseProgression } from "@/app/types";
+import ExerciseName from "../ExerciseName";
 
 type CoachSnapshotCardProps = {
   progressions: ExerciseProgression[];
@@ -59,8 +60,8 @@ export default function CoachSnapshotCard({
       ) : (
         <div className="space-y-2">
           {preview.map(({ progression, prescription }) => (
-            <div key={progression.name} className="flex items-center justify-between">
-              <p className="text-xs text-zinc-300 font-medium truncate flex-1 pr-2">{progression.name}</p>
+            <div key={progression.name} className="flex items-center justify-between gap-2">
+              <ExerciseName name={progression.name} className="text-xs text-zinc-300 font-medium truncate" />
               <span className="text-[10px] uppercase tracking-widest text-zinc-600 shrink-0">
                 {ACTION_LABEL[prescription!.action] ?? prescription!.action}
               </span>

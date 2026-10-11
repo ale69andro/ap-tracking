@@ -91,6 +91,7 @@ When in doubt: use `feature-architect` before implementing anything new.
 - Always use `try/finally` for async operations (reset loading state)
 - No `any` types
 - Prefer the set helpers in `app/lib/workout.ts` (`getEffectiveSets()`, `getWorkingSets()`, `getCompletedSets()`) over inline `type !== "Warm-up"` comparisons
+- The exercise name is the exercise identity (history, coach, block, prescriptions, PRs). A unilateral exercise is its name plus `" (Uni)"` and therefore a separate exercise. Never build, strip, or normalise that suffix by hand — use `app/lib/exerciseVariant.ts`. Catalog metadata is looked up via `findBuiltIn()`, which ignores the suffix
 
 ---
 
@@ -113,13 +114,14 @@ Think from two perspectives:
 ## Commands
 - `npm run dev`
 - `npm run lint`
+- `npm test` (Vitest, `*.test.ts` next to the source)
 - `npm run build`
 
 ---
 
 ## Known Architecture Debt (do not ignore)
 - `dashboard/page.tsx` — God component, gradual extraction ongoing
-- No unit tests for coach engine thresholds yet — no test framework installed either
+- No unit tests for coach engine thresholds yet (Vitest is installed; covered so far: block calculation, exercise variant helpers, progression grouping)
 - Error boundaries missing (no `error.tsx` / `global-error.tsx`) — async errors currently fail silently
 - `exerciseMetrics.ts` — only `getTopSet` carries real logic; `calculateEpley1RM` is an alias for `calculate1RM`, `getRelevantWorkingSets` and `calculateSessionVolume` are unused — candidate for removal
 - `app/components/dev/PrescriptionQAPanel.tsx` calls Supabase directly from a component (dev-only, but breaks the hook rule)

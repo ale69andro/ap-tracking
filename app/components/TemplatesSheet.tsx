@@ -9,6 +9,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type D
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { X, GripVertical, Trash2, ChevronLeft, ArrowRight, Plus } from "lucide-react";
+import ExerciseName from "./ExerciseName";
 
 // ─── Local draft type ─────────────────────────────────────────────────────────
 
@@ -111,9 +112,7 @@ function ExerciseConfigCard({
     <div className="bg-zinc-800/40 border border-zinc-700/40 rounded-2xl p-4">
       <div className="flex items-start gap-2 mb-3">
         <button type="button" onClick={onChangeExercise} className="flex-1 text-left min-w-0 group">
-          <p className="text-sm font-bold text-white group-hover:text-red-400 transition-colors truncate">
-            {ex.name}
-          </p>
+          <ExerciseName name={ex.name} className="text-sm font-bold text-white group-hover:text-red-400 transition-colors truncate" />
           <p className="text-[11px] text-zinc-500 mt-0.5 truncate">
             {ex.muscleGroups.join(" · ")}
             <span className="text-zinc-700"> · tap to change</span>
@@ -222,7 +221,7 @@ function TemplateCard({
       <div className="space-y-1.5">
         {template.exercises.map((e) => (
           <div key={e.name} className="flex items-center justify-between gap-2">
-            <p className="text-[12px] text-zinc-400 truncate">{e.name}</p>
+            <ExerciseName name={e.name} className="text-[12px] text-zinc-400 truncate" />
             {e.sets != null && e.targetReps != null && (
               <p className="text-[11px] text-zinc-600 shrink-0 tabular-nums">
                 {e.sets}×{e.targetReps}
@@ -413,6 +412,8 @@ export default function TemplatesSheet({
     } catch (e) {
       const msg = e instanceof Error && e.message === "DUPLICATE_EXERCISE"
         ? "An exercise with this name already exists."
+        : e instanceof Error && e.message === "RESERVED_EXERCISE_NAME"
+        ? "Names can't end with \"(Uni)\". Add the exercise, then switch it to unilateral in the workout."
         : "Could not save exercise. Please try again.";
       setSaveError(msg);
       setSaving(false);

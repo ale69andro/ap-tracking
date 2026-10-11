@@ -10,11 +10,18 @@ import type {
   TemplateExercise,
   ExercisePrescription,
   ExerciseStructureSnapshot,
+  ExerciseVariant,
   TrainingProfile,
 } from "@/app/types";
 import { createClient } from "@/lib/supabase/client";
 import { arrayMove } from "@dnd-kit/sortable";
-import { applyPrescriptionToSets, hasStructureChanged } from "@/app/lib/workout";
+import {
+  applyPrescriptionToSets,
+  buildStructuralTemplateExercises,
+  hasStructureChanged,
+  refillSetsForVariant,
+} from "@/app/lib/workout";
+import { withExerciseVariant } from "@/app/lib/exerciseVariant";
 import { detectBadDayDuringWorkout } from "@/lib/analysis/detectBadDayDuringWorkout";
 import type { BadDaySignal } from "@/lib/analysis/detectBadDayDuringWorkout";
 
@@ -576,10 +583,42 @@ export function useWorkout(
         : prev
     );
 
+  /**
+   * Switches an exercise between bilateral and unilateral for this session.
+   * The variant lives in the exercise name, so this is a rename: history,
+   * coach hints, prescriptions and PRs follow the new name automatically.
+   * Open sets are re-filled from the new variant's history (or cleared) so no
+   * value of the other variant stays in the card; completed sets are kept.
+   */
+  const setExerciseVariant = (
+    exId: string,
+    variant: ExerciseVariant,
+    prescriptions?: ExercisePrescription[],
+  ) =>
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        exercises: prev.exercises.map((e) => {
+          if (e.id !== exId) return e;
+          const exerciseName = withExerciseVariant(e.exerciseName, variant);
+          if (exerciseName === e.exerciseName) return e;
+
+          const previous     = findGlobalPreviousExercise(exerciseName, prev.templateId);
+          const prescription = prescriptions?.find(
+            (p) => p.exercise_name === exerciseName && p.consumed_at === null,
+          );
+          return { ...e, exerciseName, sets: refillSetsForVariant(e.sets, previous, prescription) };
+        }),
+      };
+    });
+
   // ── Save / Reset ─────────────────────────────────────────────────────────
 
   const saveWorkout = async (
     consumePrescriptions?: (exerciseNames: string[]) => Promise<void>,
+    /** Runs after the session is saved. A failure here never fails the save. */
+    afterSave?: (session: WorkoutSession) => Promise<void>,
   ): Promise<number> => {
     if (!activeWorkout || !userId || activeWorkout.exercises.length === 0) return 0;
     clearTimer();
@@ -627,6 +666,10 @@ export function useWorkout(
       void consumePrescriptions(exerciseNames);
     }
 
+    if (afterSave) {
+      void afterSave(session).catch((e) => console.error("Post-save step failed:", e));
+    }
+
     return skippedSets;
   };
 
@@ -668,27 +711,12 @@ export function useWorkout(
 
   /**
    * Builds the TemplateExercise[] to write back when the user confirms
-   * "Update Plan". Spreads the original template exercise as base (preserving
-   * targetRepsMin/Max, startWeight, targetReps) then overlays only the fields
-   * that SessionExercise can safely provide.
-   *
-   * Matching uses exercise name as the key (V1 fallback — TemplateExercise has
-   * no stable id field, only name).
+   * "Update Plan" — see buildStructuralTemplateExercises.
    */
   const buildStructuralExercises = (): TemplateExercise[] => {
     const workout = userId ? activeWorkout : null;
     if (!workout) return [];
-    const originals = workout.originalTemplateExercises ?? [];
-    return workout.exercises.map((ex) => {
-      const original = originals.find((o) => o.name === ex.exerciseName) ?? {};
-      return {
-        ...original,
-        name:         ex.exerciseName,
-        muscleGroups: ex.muscleGroups,
-        notes:        ex.notes,
-        sets:         ex.sets.length,
-      };
-    });
+    return buildStructuralTemplateExercises(workout.exercises, workout.originalTemplateExercises ?? []);
   };
 
   return {
@@ -709,6 +737,7 @@ export function useWorkout(
     completeSet,
     uncompleteSet,
     updateExerciseRest,
+    setExerciseVariant,
     saveWorkout,
     resetWorkout,
     deleteWorkout,

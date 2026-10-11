@@ -1,5 +1,6 @@
 import type { BlockExerciseRow, BlockVerdict } from "@/app/types";
 import { formatSignedKg, formatSignedPct } from "@/app/lib/blockFormat";
+import ExerciseName from "../ExerciseName";
 
 const VERDICT_CONFIG: Record<BlockVerdict["status"], { color: string; arrow: string }> = {
   up:           { color: "text-emerald-400", arrow: "↑" },
@@ -37,7 +38,7 @@ export default function BlockSummaryCard({ ranking, dayLabels }: Props) {
               className={`flex items-center justify-between gap-3 px-4 py-3 ${isDown ? "bg-red-500/10" : ""}`}
             >
               <div className="min-w-0">
-                <p className="text-sm font-bold text-white truncate">{row.exerciseName}</p>
+                <ExerciseName name={row.exerciseName} className="text-sm font-bold text-white truncate" />
                 <p className="text-xs text-zinc-400 truncate">{dayLabels[row.templateId]}</p>
                 {verdict.sampleSize === 1 && <p className="text-[11px] text-zinc-500">wenig Daten</p>}
               </div>

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ExercisePrescription, ExerciseSet, SessionExercise, TemplateExercise, WorkoutSession } from "@/app/types";
-import { hasStructureChanged, mergeSessionVariantsIntoTemplate, refillSetsForVariant } from "@/app/lib/workout";
+import {
+  buildStructuralTemplateExercises,
+  hasStructureChanged,
+  mergeSessionVariantsIntoTemplate,
+  refillSetsForVariant,
+} from "@/app/lib/workout";
 import { withExerciseVariant } from "@/app/lib/exerciseVariant";
 import { exercise, session, set } from "@/lib/analysis/__fixtures__/blockFixtures";
 
@@ -253,6 +258,71 @@ describe("mergeSessionVariantsIntoTemplate", () => {
 
     expect(template).toEqual(templateBefore);
     expect(done).toEqual(doneBefore);
+  });
+});
+
+describe("buildStructuralTemplateExercises", () => {
+  it("keeps the template settings of an exercise and takes name, notes and set count from the session", () => {
+    const done = { ...exercise(BENCH, [open("", ""), open("", ""), open("", ""), open("", "")]), notes: "pause reps" };
+
+    const result = buildStructuralTemplateExercises([done], [tpl(BENCH, { startWeight: "60" })]);
+
+    expect(result).toEqual([
+      {
+        name: BENCH,
+        muscleGroups: [],
+        sets: 4,
+        targetReps: 8,
+        targetRepsMin: 6,
+        targetRepsMax: 10,
+        restSeconds: 90,
+        startWeight: "60",
+        notes: "pause reps",
+      },
+    ]);
+  });
+
+  it("keeps the template settings of an exercise whose variant was switched, without its start weight", () => {
+    const done = exercise(BENCH_UNI, [open("", ""), open("", "")]);
+
+    const [result] = buildStructuralTemplateExercises([done], [tpl(BENCH, { startWeight: "60" })]);
+
+    expect(result.name).toBe(BENCH_UNI);
+    expect(result.sets).toBe(2);
+    expect(result.targetReps).toBe(8);
+    expect(result.targetRepsMin).toBe(6);
+    expect(result.targetRepsMax).toBe(10);
+    expect(result.restSeconds).toBe(90);
+    expect("startWeight" in result).toBe(false);
+  });
+
+  it("prefers the template exercise with the exact name when the template lists both variants", () => {
+    const originals = [tpl(ROW, { targetReps: 5, startWeight: "80" }), tpl(ROW_UNI, { targetReps: 12, startWeight: "25" })];
+    const done = [exercise(ROW_UNI, [open("", "")]), exercise(ROW, [open("", "")])];
+
+    const result = buildStructuralTemplateExercises(done, originals);
+
+    expect(result.map((e) => [e.name, e.targetReps, e.startWeight])).toEqual([
+      [ROW_UNI, 12, "25"],
+      [ROW, 5, "80"],
+    ]);
+  });
+
+  it("builds a bare entry for an exercise that is not in the template", () => {
+    const done = exercise("Curl", [open("", ""), open("", "")]);
+
+    const [result] = buildStructuralTemplateExercises([done], [tpl(BENCH)]);
+
+    expect(result).toEqual({ name: "Curl", muscleGroups: [], notes: undefined, sets: 2 });
+  });
+
+  it("does not mutate the original template exercises", () => {
+    const originals = [tpl(BENCH)];
+    const before = structuredClone(originals);
+
+    buildStructuralTemplateExercises([exercise(BENCH_UNI, [open("", "")])], originals);
+
+    expect(originals).toEqual(before);
   });
 });
 
