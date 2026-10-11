@@ -552,3 +552,85 @@ export interface XpEvent {
   createdAt: string;
   metadata?: Record<string, unknown>;
 }
+
+// ─── Training Block ───────────────────────────────────────────────────────────
+
+export type TrainingBlockStatus = "active" | "completed" | "cancelled";
+export type BlockLengthWeeks = 4 | 8 | 12;
+
+export type TrainingBlock = {
+  id: string;
+  /** Local calendar day "YYYY-MM-DD" — may lie in the past. */
+  startDate: string;
+  lengthWeeks: BlockLengthWeeks;
+  status: TrainingBlockStatus;
+  createdAt: number;
+  /** Local calendar day "YYYY-MM-DD" the block was completed or cancelled. Unset while active. */
+  endedAt?: string;
+};
+
+/** One session of a block series: best working set, its e1RM, and deltas. */
+export type BlockEntry = {
+  sessionId: string;
+  /** Local calendar day "YYYY-MM-DD" of the session. */
+  dateKey: string;
+  startedAt: number;
+  /** 1-based week within the block. */
+  weekIndex: number;
+  bestSet: { weight: number; reps: number };
+  e1rm: number;
+  /** True when the best set has more than 12 reps — Epley is imprecise there. */
+  e1rmUnreliable: boolean;
+  deltaVsStartKg: number;
+  /** Percentage change vs the series baseline (e.g. 5 means +5%). */
+  deltaVsStartPct: number | null;
+  /** Null on the first entry of a series. */
+  deltaVsPrevKg: number | null;
+  deltaVsPrevPct: number | null;
+};
+
+/**
+ * Block verdict for one series: average e1RM of the first k sessions vs the
+ * last k sessions, without overlap (k = 1 for 2–3 sessions, k = 2 from 4).
+ */
+export type BlockVerdict = {
+  status: "insufficient" | "up" | "flat" | "down";
+  startAvg: number | null;
+  endAvg: number | null;
+  deltaKg: number | null;
+  deltaPct: number | null;
+  /** Sessions averaged per side: 0 (insufficient), 1, or 2. */
+  sampleSize: number;
+};
+
+/** One comparison series: a single exercise within a single training day (template). */
+export type BlockExerciseRow = {
+  /** `${templateId}::${exerciseName}` */
+  key: string;
+  templateId: string;
+  exerciseName: string;
+  /** Chronological — only sessions with a valid loaded working set. entries[0] is the baseline. */
+  entries: BlockEntry[];
+  /** Sessions of this template in the block that contained the exercise, with or without a valid set. */
+  sessionsInBlock: number;
+  verdict: BlockVerdict;
+};
+
+export type BlockDayGroup = {
+  templateId: string;
+  label: string;
+  rows: BlockExerciseRow[];
+  /** Exercises with completed working sets but no loaded set (e.g. bodyweight) — no e1RM comparison possible. */
+  unratedExercises: string[];
+};
+
+export type BlockResult = {
+  windowStart: string;
+  /** Exclusive end day "YYYY-MM-DD". */
+  windowEnd: string;
+  groups: BlockDayGroup[];
+  /** All series sorted by verdict gain (largest first); insufficient series last. */
+  ranking: BlockExerciseRow[];
+  /** Completed sessions inside the window that were skipped for lacking a template. */
+  ignoredSessions: number;
+};
