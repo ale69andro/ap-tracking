@@ -100,7 +100,7 @@ function migrateSession(raw: Record<string, unknown>): WorkoutSession {
 
 // ─── Supabase row mappers ─────────────────────────────────────────────────────
 
-type SessionRow = {
+export type SessionRow = {
   id: string;
   user_id: string;
   name: string;
@@ -112,7 +112,7 @@ type SessionRow = {
   exercises: SessionExercise[];
 };
 
-function rowToSession(row: SessionRow): WorkoutSession {
+export function rowToSession(row: SessionRow): WorkoutSession {
   return {
     id:              row.id,
     name:            row.name,

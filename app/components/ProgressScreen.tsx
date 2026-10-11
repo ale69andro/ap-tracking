@@ -13,6 +13,7 @@ import WeeklyCoachingCard from "./WeeklyCoachingCard";
 import VolumePreviewCard from "./VolumePreviewCard";
 import VolumeDetailSheet from "./VolumeDetailSheet";
 import { getExerciseRole } from "@/app/constants/exercises";
+import BlockEntryCard from "./block/BlockEntryCard";
 
 // ─── Resolved exercise card state ─────────────────────────────────────────────
 
@@ -548,6 +549,8 @@ export default function ProgressScreen({ progressions, onTapExercise, nextDay, t
         </p>
         <h1 className="text-4xl font-black text-white tracking-tight leading-none">Progress</h1>
       </header>
+
+      <BlockEntryCard />
 
       {noData ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">

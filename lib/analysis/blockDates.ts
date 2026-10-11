@@ -50,3 +50,20 @@ export function weekIndexOf(dateKey: string, startDate: string): number {
   const days = Math.round(diffMs / 86_400_000);
   return Math.floor(days / 7) + 1;
 }
+
+/**
+ * Where "today" sits in a block: current week clamped to 1..lengthWeeks,
+ * plus whether the block has not started yet or its planned end has passed.
+ */
+export function getBlockTimeline(
+  startDate: string,
+  lengthWeeks: number,
+  today: string,
+): { currentWeek: number; notStarted: boolean; expired: boolean } {
+  const week = weekIndexOf(today, startDate);
+  return {
+    currentWeek: Math.min(Math.max(week, 1), lengthWeeks),
+    notStarted: today < startDate,
+    expired: today >= addDays(startDate, lengthWeeks * 7),
+  };
+}

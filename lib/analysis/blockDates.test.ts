@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  getBlockTimeline,
   getBlockWindow,
   parseLocalDate,
   toLocalDateKey,
@@ -176,5 +177,21 @@ describe("weekIndexOf", () => {
   it("counts whole days over a longer span after the spring DST change", () => {
     // 2026-03-01 -> 2026-04-05 is 35 days.
     expect(weekIndexOf("2026-04-05", "2026-03-01")).toBe(6);
+  });
+});
+
+describe("getBlockTimeline", () => {
+  it("reports the running week inside the block", () => {
+    expect(getBlockTimeline("2026-01-05", 4, "2026-01-05")).toEqual({ currentWeek: 1, notStarted: false, expired: false });
+    expect(getBlockTimeline("2026-01-05", 4, "2026-01-20")).toEqual({ currentWeek: 3, notStarted: false, expired: false });
+  });
+
+  it("is not expired on the last block day and expired the day after", () => {
+    expect(getBlockTimeline("2026-01-05", 4, "2026-02-01")).toEqual({ currentWeek: 4, notStarted: false, expired: false });
+    expect(getBlockTimeline("2026-01-05", 4, "2026-02-02")).toEqual({ currentWeek: 4, notStarted: false, expired: true });
+  });
+
+  it("clamps the week for a block that starts in the future", () => {
+    expect(getBlockTimeline("2026-01-05", 8, "2025-12-20")).toEqual({ currentWeek: 1, notStarted: true, expired: false });
   });
 });

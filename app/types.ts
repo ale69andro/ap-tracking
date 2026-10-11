@@ -616,19 +616,28 @@ export type BlockExerciseRow = {
   verdict: BlockVerdict;
 };
 
+/** One training day (template) with at least one comparable series. */
 export type BlockDayGroup = {
   templateId: string;
   label: string;
   rows: BlockExerciseRow[];
-  /** Exercises with completed working sets but no loaded set (e.g. bodyweight) — no e1RM comparison possible. */
-  unratedExercises: string[];
+};
+
+/** Exercises of one training day with completed working sets but no loaded set (e.g. bodyweight) — no e1RM comparison possible. */
+export type BlockUnratedGroup = {
+  templateId: string;
+  label: string;
+  exercises: string[];
 };
 
 export type BlockResult = {
   windowStart: string;
   /** Exclusive end day "YYYY-MM-DD". */
   windowEnd: string;
+  /** Training days that have at least one comparable series. */
   groups: BlockDayGroup[];
+  /** Non-comparable exercises per training day — also covers days without any comparable series. */
+  unrated: BlockUnratedGroup[];
   /** All series sorted by verdict gain (largest first); insufficient series last. */
   ranking: BlockExerciseRow[];
   /** Completed sessions inside the window that were skipped for lacking a template. */

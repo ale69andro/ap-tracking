@@ -3,6 +3,7 @@ import type {
   BlockEntry,
   BlockExerciseRow,
   BlockResult,
+  BlockUnratedGroup,
   BlockVerdict,
   ExerciseSet,
   TrainingBlock,
@@ -171,17 +172,20 @@ export function computeBlockProgress(
     }
   }
 
-  const resultGroups: BlockDayGroup[] = [...groups.values()].map((group) => {
+  const resultGroups: BlockDayGroup[] = [];
+  const unrated: BlockUnratedGroup[] = [];
+
+  for (const group of groups.values()) {
+    const label = templateNames[group.templateId] || group.latestSessionName || DELETED_TEMPLATE_LABEL;
     const rows = [...group.rows.values()].filter((row) => row.entries.length > 0);
     for (const row of rows) row.verdict = computeBlockVerdict(row.entries);
+    // A day without any comparable series is not a group — it only shows up under unrated.
+    if (rows.length > 0) resultGroups.push({ templateId: group.templateId, label, rows });
+
     const rated = new Set(rows.map((row) => row.exerciseName));
-    return {
-      templateId: group.templateId,
-      label: templateNames[group.templateId] || group.latestSessionName || DELETED_TEMPLATE_LABEL,
-      rows,
-      unratedExercises: [...group.unloaded].filter((name) => !rated.has(name)),
-    };
-  });
+    const exercises = [...group.unloaded].filter((name) => !rated.has(name));
+    if (exercises.length > 0) unrated.push({ templateId: group.templateId, label, exercises });
+  }
 
   const ranking = resultGroups
     .flatMap((group) => group.rows)
@@ -199,6 +203,7 @@ export function computeBlockProgress(
     windowStart: window.start,
     windowEnd: window.endExclusive,
     groups: resultGroups,
+    unrated,
     ranking,
     ignoredSessions,
   };

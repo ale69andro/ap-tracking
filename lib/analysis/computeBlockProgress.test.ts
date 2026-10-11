@@ -250,8 +250,8 @@ describe("computeBlockProgress: entries and deltas", () => {
       benchSession("s2", "2026-01-12", "80"),
       benchSession("s3", "2026-01-19", "90"),
     ];
-    const group = computeBlockProgress(block("2026-01-05"), sessions, {}).groups[0];
-    const row = group.rows[0];
+    const result = computeBlockProgress(block("2026-01-05"), sessions, {});
+    const row = result.groups[0].rows[0];
 
     expect(row.sessionsInBlock).toBe(3);
     expect(row.entries).toHaveLength(2);
@@ -263,7 +263,7 @@ describe("computeBlockProgress: entries and deltas", () => {
     expect(row.verdict.status).toBe("up");
     expect(row.verdict.sampleSize).toBe(1);
     // Nothing was completed, so the exercise is not "unrated" either.
-    expect(group.unratedExercises).toEqual([]);
+    expect(result.unrated).toEqual([]);
   });
 
   it("does not show a bodyweight exercise as a row but lists it as unrated", () => {
@@ -288,7 +288,7 @@ describe("computeBlockProgress: entries and deltas", () => {
     const group = result.groups[0];
 
     expect(group.rows.map((r) => r.exerciseName)).toEqual(["Dip"]);
-    expect(group.unratedExercises).toEqual(["Pull-up"]);
+    expect(result.unrated).toEqual([{ templateId: "t1", label: "Pull", exercises: ["Pull-up"] }]);
     expect(result.ranking.map((r) => r.exerciseName)).toEqual(["Dip"]);
 
     const numbers = collectNumbers(result);
@@ -312,8 +312,9 @@ describe("computeBlockProgress: entries and deltas", () => {
       }),
     ];
     const result = computeBlockProgress(block("2026-01-05"), sessions, {});
-    expect(result.groups[0].rows).toEqual([]);
-    expect(result.groups[0].unratedExercises).toEqual(["Pull-up"]);
+    // A day without comparable series is no group — it only appears under unrated.
+    expect(result.groups).toEqual([]);
+    expect(result.unrated.map((u) => u.exercises)).toEqual([["Pull-up"]]);
     expect(result.ranking).toEqual([]);
     expect(collectNumbers(result).every((n) => Number.isFinite(n))).toBe(true);
   });
@@ -333,11 +334,12 @@ describe("computeBlockProgress: entries and deltas", () => {
         exercises: [exercise("Pull-up", [set("10", "8")])],
       }),
     ];
-    const group = computeBlockProgress(block("2026-01-05"), sessions, {}).groups[0];
+    const result = computeBlockProgress(block("2026-01-05"), sessions, {});
+    const group = result.groups[0];
     expect(group.rows).toHaveLength(1);
     expect(group.rows[0].entries).toHaveLength(1);
     expect(group.rows[0].sessionsInBlock).toBe(2);
-    expect(group.unratedExercises).toEqual([]);
+    expect(result.unrated).toEqual([]);
   });
 
   it("flags e1RM as unreliable only above 12 reps", () => {
@@ -548,6 +550,7 @@ describe("computeBlockProgress: session filtering", () => {
       windowStart: "2026-01-05",
       windowEnd: "2026-03-02",
       groups: [],
+      unrated: [],
       ranking: [],
       ignoredSessions: 0,
     });
