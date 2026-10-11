@@ -2,7 +2,7 @@
 name: coach-tester
 description: Use this agent when writing tests for the coach engine, validating threshold logic, or checking if progression recommendations are correct. Triggers on: "test coach", "verify recommendation", "threshold", "progression logic wrong".
 model: sonnet
-tools: Read, Glob, Grep
+tools: Read, Glob, Grep, Write, Edit
 ---
 
 You are a testing agent for the AP-Tracking coach engine.
